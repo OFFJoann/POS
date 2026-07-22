@@ -1,0 +1,95 @@
+{% extends 'base/base.html' %}
+{% load static custom_filters %}
+
+{% block title %}Mesas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h3 class="mb-0"><i class="bi bi-grid-3x3-gap-fill"></i> Mesas</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div>
+                <span class="badge bg-success me-1">🟢 Libre</span>
+                <span class="badge bg-warning me-1">🟡 Pedido</span>
+                <span class="badge text-bg-warning bg-orange me-1">🟠 Parcial</span>
+                <span class="badge bg-primary me-1">🔵 Pagada</span>
+                <span class="badge bg-danger me-1">🔴 Cerrada</span>
+            </div>
+            {% if user.is_staff %}
+            <a href="{% url 'gestion_mesas' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-gear"></i> Gestionar
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3" id="contenedor-mesas">
+        {% for mesa in mesas %}
+        {% with pedido_activo=mesa.pedidos_activos.0 %}
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+            {% if mesa.estado == 'pagada' or mesa.estado == 'cerrada' %}
+            <div class="card mesa-card mesa-{{ mesa.estado }}" data-mesa-id="{{ mesa.id }}">
+                <div class="card-body text-center py-4">
+                    <h4 class="card-title mb-2">Mesa {{ mesa.numero }}</h4>
+                    <div class="mesa-estado-badge mb-2">
+                        <span class="badge fs-6 estado-{{ mesa.estado }}">
+                            {{ mesa.get_estado_display }}
+                        </span>
+                    </div>
+                    <a href="{% url 'liberar_mesa' mesa.id %}"
+                       class="btn btn-sm btn-outline-light mt-2"
+                       onclick="return confirm('¿Liberar mesa {{ mesa.numero }}?')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Liberar
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none">
+                <div class="card mesa-card mesa-{{ mesa.estado }}" data-mesa-id="{{ mesa.id }}">
+                    <div class="card-body text-center py-4">
+                        <h4 class="card-title mb-2">Mesa {{ mesa.numero }}</h4>
+                        <div class="mesa-estado-badge mb-2">
+                            <span class="badge fs-6 estado-{{ mesa.estado }}">
+                                {{ mesa.get_estado_display }}
+                            </span>
+                        </div>
+                        {% if pedido_activo and mesa.estado != 'libre' %}
+                            <small class="text-muted d-block">
+                                <i class="bi bi-person"></i> {{ pedido_activo.mesero.nombre }}
+                            </small>
+                            <small class="text-muted d-block">
+                                ${{ pedido_activo.total|mil }}
+                            </small>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endif %}
+        </div>
+        {% endwith %}
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function actualizarMesas() {
+    $.get('/mesas/estado/', function(data) {
+        data.mesas.forEach(function(mesa) {
+            var card = $('[data-mesa-id="' + mesa.id + '"]');
+            if (card.length) {
+                card.removeClass('mesa-libre mesa-activo mesa-parcial mesa-pagada mesa-cerrada')
+                    .addClass('mesa-' + mesa.estado);
+                card.find('.mesa-estado-badge span')
+                    .removeClass('estado-libre estado-activo estado-parcial estado-pagada estado-cerrada')
+                    .addClass('estado-' + mesa.estado)
+                    .text(mesa.estado_display);
+            }
+        });
+    });
+}
+
+setInterval(actualizarMesas, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,267 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Reportes{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <h3 class="mb-3"><i class="bi bi-graph-up"></i> Dashboard de reportes</h3>
+
+    <!-- Fila 1: Métricas principales -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted">Ventas del día</h6>
+                            <h3 class="text-primary">${{ ventas_dia|mil }}</h3>
+                            <small class="text-muted">{{ num_facturas }} facturas</small>
+                        </div>
+                        <i class="bi bi-graph-up-arrow text-primary" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm border-success">
+                <div class="card-body">
+                    <h6 class="text-muted">Ventas del mes</h6>
+                    <h3 class="text-success">${{ ventas_mes|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm border-info">
+                <div class="card-body">
+                    <h6 class="text-muted">Ventas del año</h6>
+                    <h3 class="text-info">${{ ventas_anio|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm border-warning">
+                <div class="card-body">
+                    <h6 class="text-muted">Productos vendidos hoy</h6>
+                    <h3 class="text-warning">{{ productos_vendidos|mil }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila 2: Detalles -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-cash"></i> Métodos de pago hoy</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Efectivo</span>
+                        <span class="fw-bold text-success">${{ efectivo_dia|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Transferencia</span>
+                        <span class="fw-bold text-info">${{ transferencia_dia|mil }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <span>Descuentos</span>
+                        <span class="fw-bold text-danger">${{ descuentos_dia|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Egresos hoy</span>
+                        <span class="fw-bold text-danger">${{ total_egresos|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Egresos mes</span>
+                        <span class="fw-bold text-danger">${{ total_egresos_mes|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Egresos año</span>
+                        <span class="fw-bold text-danger">${{ total_egresos_anio|mil }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-trophy"></i> Más vendidos</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Producto</th><th class="text-end">Vendidos</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in mas_vendidos %}
+                            <tr>
+                                <td>{{ p.producto__nombre }}</td>
+                                <td class="text-end">{{ p.total_vendido|mil }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-muted text-center">Sin datos</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-arrow-down"></i> Menos vendidos</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Producto</th><th class="text-end">Vendidos</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in menos_vendidos %}
+                            <tr>
+                                <td>{{ p.producto__nombre }}</td>
+                                <td class="text-end">{{ p.total_vendido|mil }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-muted text-center">Sin datos</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cortesías y Consumos -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-gift text-warning"></i> Cortesías del día</span>
+                    <span class="badge bg-warning text-dark">{{ num_cortesias }}</span>
+                </div>
+                <div class="card-body p-2">
+                    {% if cortesias_items %}
+                    <div class="table-responsive" style="max-height: 200px;">
+                        <table class="table table-sm small mb-0">
+                            <thead><tr><th>Producto</th><th>Monto</th><th>Factura</th></tr></thead>
+                            <tbody>
+                                {% for item in cortesias_items %}
+                                <tr>
+                                    <td>{{ item.producto.nombre }}</td>
+                                    <td>${{ item.precio_unitario|mil }}</td>
+                                    <td>#{{ item.pedido.factura.id }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0 p-2">Sin cortesías hoy</p>
+                    {% endif %}
+                    <div class="mt-2 border-top pt-1 d-flex justify-content-between">
+                        <small class="text-muted">Total cortesías: <strong>${{ total_cortesias|mil }}</strong></small>
+                        <a href="{% url 'reporte_productos' %}" class="small">Ver detalle</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-cup-straw text-success"></i> Consumo interno (Hidratación)</span>
+                    <span class="badge bg-success">{{ num_consumos }}</span>
+                </div>
+                <div class="card-body p-2">
+                    {% if consumos_items %}
+                    <div class="table-responsive" style="max-height: 200px;">
+                        <table class="table table-sm small mb-0">
+                            <thead><tr><th>Producto</th><th>Cant.</th><th>Empleado</th></tr></thead>
+                            <tbody>
+                                {% for item in consumos_items %}
+                                <tr>
+                                    <td>{{ item.producto.nombre }}</td>
+                                    <td>{{ item.cantidad }}</td>
+                                    <td>{{ item.empleado|default:"—" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0 p-2">Sin consumos hoy</p>
+                    {% endif %}
+                    <div class="mt-2 border-top pt-1">
+                        <a href="{% url 'lista_inventario' %}" class="small">Ir a inventario</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Egresos por categoría -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-pie-chart text-danger"></i> Egresos del día por categoría</span>
+                    <span class="fw-bold text-danger">${{ total_egresos|mil }}</span>
+                </div>
+                <div class="card-body p-2">
+                    {% if egresos_por_categoria %}
+                    <div class="table-responsive">
+                        <table class="table table-sm small mb-0">
+                            <thead><tr><th>Categoría</th><th class="text-end">Cantidad</th><th class="text-end">Total</th></tr></thead>
+                            <tbody>
+                                {% for cat in egresos_por_categoria %}
+                                <tr>
+                                    <td>{{ cat.categoria__nombre|default:"Sin categoría" }}</td>
+                                    <td class="text-end">{{ cat.cantidad }}</td>
+                                    <td class="text-end text-danger fw-bold">${{ cat.total|mil }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0 p-2">Sin egresos hoy</p>
+                    {% endif %}
+                    <div class="mt-2 border-top pt-1">
+                        <a href="{% url 'lista_egresos' %}" class="small">Ver todos los egresos</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enlaces rápidos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-link-45deg"></i> Reportes detallados</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{% url 'reporte_ventas' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-receipt"></i> Ventas
+                        </a>
+                        <a href="{% url 'reporte_productos' %}" class="btn btn-outline-success">
+                            <i class="bi bi-box-seam"></i> Productos
+                        </a>
+                        <a href="{% url 'exportar_ventas_excel' %}" class="btn btn-outline-success">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                        </a>
+                        <a href="{% url 'exportar_ventas_pdf' %}" class="btn btn-outline-danger">
+                            <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

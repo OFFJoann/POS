@@ -1,0 +1,52 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Consumo Interno{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-cup-straw"></i> Consumo interno (Hidratación)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Registra un producto entregado a un empleado. Se descontará del inventario sin generar factura.</p>
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2 small">
+                        {% for error in form.non_field_errors %}
+                        <i class="bi bi-exclamation-circle"></i> {{ error }}<br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <div class="text-danger small">{{ field.errors|join:', ' }}</div>
+                            {% endif %}
+                            {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Registrar
+                            </button>
+                            <a href="{% url 'lista_inventario' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

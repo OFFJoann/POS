@@ -1,0 +1,170 @@
+{% extends 'base/base.html' %}
+{% load static custom_filters %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Fila superior: Accesos rápidos -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h2 class="mb-0">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </h2>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'vista_mesas' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Mesas
+                    </a>
+                    <a href="{% url 'lista_precios' %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="bi bi-tags"></i> Precios
+                    </a>
+                    {% if user.is_staff %}
+                    <a href="{% url 'estado_caja' %}" class="btn btn-outline-success btn-lg">
+                        <i class="bi bi-cash-stack"></i> Caja
+                    </a>
+                    <a href="{% url 'dashboard_reportes' %}" class="btn btn-outline-info btn-lg">
+                        <i class="bi bi-graph-up"></i> Reportes
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjetas de resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Ventas del día</h6>
+                            <h3 class="mb-0">$ {{ ventas_hoy|mil }}</h3>
+                        </div>
+                        <i class="bi bi-graph-up-arrow" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Caja</h6>
+                            {% if caja_activa %}
+                                <h5 class="mb-0"><i class="bi bi-check-circle"></i> Abierta</h5>
+                                <small>${{ caja_activa.monto_inicial|mil }} inicial</small>
+                            {% else %}
+                                <h5 class="mb-0"><i class="bi bi-x-circle"></i> Cerrada</h5>
+                            {% endif %}
+                        </div>
+                        <i class="bi bi-cash-stack" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Stock Bajo</h6>
+                            <h3 class="mb-0">{{ stock_bajo|length }}</h3>
+                            <small>Productos</small>
+                        </div>
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Mesas</h6>
+                            <h3 class="mb-0">{{ mesas|length }}</h3>
+                            <small>Disponibles</small>
+                        </div>
+                        <i class="bi bi-grid-3x3-gap-fill" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mesas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-grid-3x3-gap-fill"></i> Mesas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for mesa in mesas %}
+                        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                            <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none">
+                                <div class="card mesa-card mesa-{{ mesa.estado }}">
+                                    <div class="card-body text-center py-3">
+                                        <h5 class="card-title mb-1">Mesa {{ mesa.numero }}</h5>
+                                        <small>{{ mesa.get_estado_display }}</small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        {% empty %}
+                        <div class="col-12 text-center py-4 text-muted">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-2">No hay mesas configuradas</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock bajo -->
+    {% if stock_bajo %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm border-warning">
+                <div class="card-header bg-warning bg-opacity-10 py-3">
+                    <h5 class="mb-0 text-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Productos con stock bajo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Producto</th>
+                                    <th>Stock actual</th>
+                                    <th>Stock mínimo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for producto in stock_bajo %}
+                                <tr>
+                                    <td>{{ producto.codigo }}</td>
+                                    <td>{{ producto.nombre }}</td>
+                                    <td class="text-danger fw-bold">{{ producto.stock_actual|mil }}</td>
+                                    <td>{{ producto.stock_minimo|mil }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

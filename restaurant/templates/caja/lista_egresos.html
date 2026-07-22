@@ -1,0 +1,81 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Egresos{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-cash"></i> Egresos</h3>
+        <a href="{% url 'registrar_egreso' %}" class="btn btn-danger">
+            <i class="bi bi-plus-circle"></i> Nuevo egreso
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Categoría</th>
+                                <th>Motivo</th>
+                                <th>Valor</th>
+                                <th>Método</th>
+                                <th>Descripción</th>
+                                <th>Soporte</th>
+                                <th>Usuario</th>
+                                {% if user.is_staff %}<th></th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in egresos %}
+                            <tr>
+                                <td>{{ e.created_at|date:'d/m/Y H:i' }}</td>
+                                <td>{% if e.categoria %}<span class="badge bg-secondary">{{ e.categoria.nombre }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                <td>{{ e.motivo }}</td>
+                                <td class="fw-bold text-danger">${{ e.valor|mil }}</td>
+                                <td>
+                                    {% if e.metodo_pago == 'transferencia' %}
+                                    <span class="badge bg-info">Transferencia</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Efectivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if e.soporte %}
+                                    <a href="{{ e.soporte.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="bi bi-paperclip"></i> Ver
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ e.usuario|default:'-' }}</td>
+                                {% if user.is_staff %}
+                                <td class="text-nowrap">
+                                    <a href="{% url 'editar_egreso' e.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'eliminar_egreso' e.pk %}" class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('¿Eliminar este egreso?')" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if user.is_staff %}9{% else %}8{% endif %}" class="text-center text-muted py-4">
+                                    No hay egresos registrados
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

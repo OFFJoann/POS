@@ -1,0 +1,86 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}No se puede eliminar {{ producto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm border-danger">
+                <div class="card-header bg-danger bg-opacity-10 text-danger">
+                    <h5 class="mb-0"><i class="bi bi-shield-exclamation"></i> No se puede eliminar "{{ producto.nombre }}"</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Este producto tiene registros asociados en el sistema.
+                        Para poder eliminarlo debes eliminar primero esos registros desde sus respectivas secciones.
+                    </p>
+
+                    {% for group in related %}
+                    <div class="card mb-3 border">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <span class="fw-bold"><i class="bi bi-table"></i> {{ group.verbose_name }}</span>
+                            <span class="badge bg-danger rounded-pill">{{ group.count }}</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Registro</th>
+                                            {% if group.app_label == 'inventario' %}
+                                            <th>Tipo</th>
+                                            <th>Cantidad</th>
+                                            {% endif %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for obj in group.objects %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ obj }}</td>
+                                            {% if group.app_label == 'inventario' %}
+                                            <td>{% if obj.tipo %}{{ obj.get_tipo_display }}{% endif %}</td>
+                                            <td>{% if obj.cantidad %}{{ obj.cantidad }}{% endif %}</td>
+                                            {% endif %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white">
+                            {% if group.app_label == 'inventario' and group.verbose_name == 'Movimientos de inventario' %}
+                            <a href="{% url 'historial_inventario' %}?producto={{ producto.id }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                <i class="bi bi-box-arrow-up-right"></i> Gestionar movimientos
+                            </a>
+                            {% elif group.app_label == 'inventario' and group.verbose_name == 'Consumos internos' %}
+                            <span class="text-muted small">
+                                <i class="bi bi-info-circle"></i> Ve al módulo Inventario > Consumo interno para eliminar estos registros.
+                            </span>
+                            {% elif group.app_label == 'mesas' %}
+                            <span class="text-muted small">
+                                <i class="bi bi-info-circle"></i> Son detalles de pedidos/ventas. Debes cancelar o eliminar los pedidos que contengan este producto desde el módulo Mesas.
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-arrow-return-left"></i>
+                        <strong>¿Ya eliminaste los registros?</strong>
+                        <a href="{% url 'eliminar_producto' producto.id %}" class="alert-link">Vuelve a intentar eliminar el producto</a>.
+                    </div>
+
+                    <a href="{% url 'lista_productos' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver a productos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

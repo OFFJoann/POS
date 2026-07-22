@@ -1,0 +1,80 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Cerrar Caja{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-lock"></i> Cierre de caja</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Monto inicial</small>
+                                <h5>${{ caja.monto_inicial|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Ventas efectivo</small>
+                                <h5 class="text-success">${{ caja.total_ventas_efectivo|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Ventas transferencia</small>
+                                <h5 class="text-info">${{ caja.total_ventas_transferencia|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Total ventas</small>
+                                <h5>${{ caja.total_ventas|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Egresos</small>
+                                <h5 class="text-danger">${{ caja.total_egresos|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Total (inic.+ventas−egresos)</small>
+                                <h5 class="text-primary">${{ caja.dinero_esperado|mil }}</h5>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        ¿Estás seguro de cerrar la caja? Esta acción no se puede deshacer.
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Asegúrate de que todas las mesas estén pagadas antes de cerrar.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger btn-lg flex-grow-1">
+                                <i class="bi bi-lock"></i> Cerrar caja
+                            </button>
+                            <a href="{% url 'estado_caja' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Acceder{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-5">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5 text-center">
+                    <div class="mb-4">
+                        <i class="bi bi-shop" style="font-size: 4rem; color: var(--primary-color);"></i>
+                        <h1 class="h3 mt-3">Restaurant</h1>
+                        <p class="text-muted">Sistema de Facturación</p>
+                    </div>
+
+                    <form method="post" autocomplete="off">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="form-label fs-5">Ingresa tu cédula</label>
+                            {{ form.cedula }}
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Acceder
+                        </button>
+                    </form>
+
+                    {% if form.errors %}
+                    <div class="alert alert-danger mt-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Cédula no encontrada o usuario inactivo.
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Ingresa con tu número de cédula registrado.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .card {
+        border-radius: 20px;
+    }
+    .btn-primary {
+        padding: 12px;
+        font-size: 1.1rem;
+        border-radius: 10px;
+    }
+</style>
+{% endblock %}

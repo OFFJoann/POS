@@ -1,0 +1,141 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Reporte de Ventas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-receipt"></i> Reporte de ventas</h3>
+        <div class="d-flex gap-2">
+            <a href="{% url 'exportar_ventas_excel' %}?{% for k,v in request.GET.items %}{{ k }}={{ v }}&{% endfor %}"
+               class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
+            <a href="{% url 'exportar_ventas_pdf' %}?{% for k,v in request.GET.items %}{{ k }}={{ v }}&{% endfor %}"
+               class="btn btn-outline-danger">
+                <i class="bi bi-file-earmark-pdf"></i> PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <div class="col-md-2">
+                    <label class="form-label small">Desde</label>
+                    <input type="date" name="desde" class="form-control" value="{{ request.GET.desde }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Hasta</label>
+                    <input type="date" name="hasta" class="form-control" value="{{ request.GET.hasta }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Mesero</label>
+                    <select name="mesero" class="form-select">
+                        <option value="">Todos</option>
+                        {% for v in vendedores %}
+                        <option value="{{ v.id }}" {% if request.GET.mesero == v.id|stringformat:'i' %}selected{% endif %}>
+                            {{ v.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Método</label>
+                    <select name="metodo" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="efectivo" {% if request.GET.metodo == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                        <option value="transferencia" {% if request.GET.metodo == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Mesa</label>
+                    <input type="number" name="mesa" class="form-control" placeholder="# mesa"
+                           value="{{ request.GET.mesa }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Totales -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-2 text-center">
+                    <small>Total</small>
+                    <h5 class="mb-0">${{ totales.total_ventas|mil|default:'0' }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white">
+                <div class="card-body py-2 text-center">
+                    <small>Efectivo</small>
+                    <h5 class="mb-0">${{ totales.efectivo|mil|default:'0' }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body py-2 text-center">
+                    <small>Transferencia</small>
+                    <h5 class="mb-0">${{ totales.transferencia|mil|default:'0' }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-2 text-center">
+                    <small>Descuentos</small>
+                    <h5 class="mb-0">${{ totales.descuentos|mil|default:'0' }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th># Factura</th>
+                            <th>Fecha</th>
+                            <th>Mesa</th>
+                            <th>Mesero</th>
+                            <th>Método</th>
+                            <th>Subtotal</th>
+                            <th>Desc.</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in facturas %}
+                        <tr>
+                            <td>{{ f.numero }}</td>
+                            <td>{{ f.created_at|date:'d/m/Y H:i' }}</td>
+                            <td>Mesa {{ f.mesa.numero }}</td>
+                            <td>{{ f.mesero.nombre }}</td>
+                            <td>{{ f.get_metodo_pago_display }}</td>
+                            <td>${{ f.subtotal|mil }}</td>
+                            <td>${{ f.descuento|mil }}</td>
+                            <td class="fw-bold">${{ f.total|mil }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="text-center text-muted py-4">Sin resultados</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Caja{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-cash-stack"></i> Caja</h3>
+        <div class="d-flex gap-2">
+            {% if user.is_staff %}
+                {% if caja %}
+                    <a href="{% url 'registrar_egreso' %}" class="btn btn-outline-danger">
+                        <i class="bi bi-cash"></i> Egreso
+                    </a>
+                    <a href="{% url 'cerrar_caja' %}" class="btn btn-danger">
+                        <i class="bi bi-lock"></i> Cerrar caja
+                    </a>
+                {% else %}
+                    <a href="{% url 'abrir_caja' %}" class="btn btn-success">
+                        <i class="bi bi-unlock"></i> Abrir caja
+                    </a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if caja %}
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <h6>Monto inicial</h6>
+                    <h3>${{ caja.monto_inicial|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-success text-white">
+                <div class="card-body">
+                    <h6>Ventas efectivo</h6>
+                    <h3>${{ caja.total_ventas_efectivo|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-info text-white">
+                <div class="card-body">
+                    <h6>Ventas transferencia</h6>
+                    <h3>${{ caja.total_ventas_transferencia|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-warning text-white">
+                <div class="card-body">
+                    <h6>Egresos efectivo</h6>
+                    <h3>${{ caja.total_egresos_efectivo|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-secondary text-white">
+                <div class="card-body">
+                    <h6>Egresos transferencia</h6>
+                    <h3>${{ caja.total_egresos_transferencia|mil }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Egresos del día -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-cash"></i> Egresos registrados</h5>
+            <div class="d-flex gap-2">
+                <a href="{% url 'gestionar_categorias_egreso' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-tags"></i> Categorías
+                </a>
+                <a href="{% url 'registrar_egreso' %}" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-plus-circle"></i> Nuevo egreso
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Categoría</th>
+                                <th>Motivo</th>
+                                <th>Valor</th>
+                                <th>Método</th>
+                                <th>Descripción</th>
+                                <th>Soporte</th>
+                                <th>Usuario</th>
+                                <th>Hora</th>
+                                {% if user.is_staff %}<th></th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in egresos %}
+                            <tr>
+                                <td>{% if e.categoria %}<span class="badge bg-secondary">{{ e.categoria.nombre }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                <td>{{ e.motivo }}</td>
+                                <td class="fw-bold text-danger">${{ e.valor|mil }}</td>
+                                <td>
+                                    {% if e.metodo_pago == 'transferencia' %}
+                                    <span class="badge bg-info">Transferencia</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Efectivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ e.descripcion|default:'-' }}</td>
+                                <td>
+                                    {% if e.soporte %}
+                                    <a href="{{ e.soporte.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="bi bi-paperclip"></i>
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ e.usuario|default:'-' }}</td>
+                                <td>{{ e.created_at|date:'H:i' }}</td>
+                                {% if user.is_staff %}
+                                <td class="text-nowrap">
+                                    <a href="{% url 'editar_egreso' e.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'eliminar_egreso' e.pk %}" class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('¿Eliminar este egreso?')" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if user.is_staff %}9{% else %}8{% endif %}" class="text-center text-muted">Sin egresos registrados</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-cash-stack text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3">No hay caja abierta</h4>
+            <p class="text-muted">Abre la caja para comenzar a registrar ventas.</p>
+            {% if user.is_staff %}
+            <a href="{% url 'abrir_caja' %}" class="btn btn-success btn-lg">
+                <i class="bi bi-unlock"></i> Abrir caja
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Factura #{{ factura.numero }}{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-receipt"></i> Factura #{{ factura.numero }}</h4>
+                    <a href="{% url 'factura_pdf' factura.id %}" class="btn btn-danger">
+                        <i class="bi bi-file-pdf"></i> PDF
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <small class="text-muted">Fecha:</small>
+                            <p class="mb-0">{{ factura.created_at|date:'d/m/Y' }}</p>
+                        </div>
+                        <div class="col-6 text-end">
+                            <small class="text-muted">Hora:</small>
+                            <p class="mb-0">{{ factura.created_at|date:'H:i:s' }}</p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Mesa:</small>
+                            <p class="mb-0">Mesa {{ factura.mesa.numero }}</p>
+                        </div>
+                        <div class="col-6 text-end">
+                            <small class="text-muted">Mesero:</small>
+                            <p class="mb-0">{{ factura.mesero.nombre }} {{ factura.mesero.apellidos }}</p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Método de pago:</small>
+                            <p class="mb-0">{{ factura.get_metodo_pago_display }}</p>
+                        </div>
+                        <div class="col-6 text-end">
+                            <small class="text-muted">Estado:</small>
+                            <p class="mb-0">
+                                {% if factura.es_parcial %}
+                                <span class="badge bg-warning">Pago Parcial</span>
+                                {% else %}
+                                <span class="badge bg-success">Pagada</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">Productos</h5>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-end">Precio</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in detalles %}
+                            <tr>
+                                <td>
+                                    {{ d.producto.nombre }}
+                                    {% if d.es_cortesia %}
+                                    <span class="badge bg-success">Cortesía</span>
+                                    {% elif d.precio_unitario < d.producto.precio_venta %}
+                                    <span class="badge bg-warning text-dark">Desc.</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ d.cantidad|mil }}</td>
+                                <td class="text-end">
+                                    {% if d.es_cortesia %}
+                                    <span class="text-decoration-line-through text-muted small">${{ d.producto.precio_venta|mil }}</span><br>
+                                    <span class="text-success">Gratis</span>
+                                    {% elif d.precio_unitario < d.producto.precio_venta %}
+                                    <span class="text-decoration-line-through text-muted small">${{ d.producto.precio_venta|mil }}</span><br>
+                                    ${{ d.precio_unitario|mil }}
+                                    {% else %}
+                                    ${{ d.precio_unitario|mil }}
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">${{ d.subtotal|mil }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold">Subtotal:</td>
+                                <td class="text-end">${{ factura.subtotal|mil }}</td>
+                            </tr>
+                            {% if factura.descuento > 0 %}
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold text-success">Descuento:</td>
+                                <td class="text-end text-success">-${{ factura.descuento|mil }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-primary">
+                                <td colspan="3" class="text-end fw-bold fs-5">Total:</td>
+                                <td class="text-end fw-bold fs-5">${{ factura.total|mil }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="text-end">Valor recibido:</td>
+                                <td class="text-end">${{ factura.valor_recibido|mil }}</td>
+                            </tr>
+                            {% if factura.cambio > 0 %}
+                            <tr>
+                                <td colspan="3" class="text-end text-success">Cambio:</td>
+                                <td class="text-end text-success">${{ factura.cambio|mil }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if factura.saldo_pendiente > 0 %}
+                            <tr class="table-warning">
+                                <td colspan="3" class="text-end fw-bold">Saldo pendiente:</td>
+                                <td class="text-end fw-bold">${{ factura.saldo_pendiente|mil }}</td>
+                            </tr>
+                            {% endif %}
+                        </tfoot>
+                    </table>
+
+                    {% if pagos %}
+                    <h5 class="mb-3 mt-4">Pagos</h5>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Método</th>
+                                <th class="text-end">Monto</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pagos %}
+                            <tr>
+                                <td>{{ p.get_metodo_display }}</td>
+                                <td class="text-end">${{ p.monto|mil }}</td>
+                                <td>{{ p.created_at|date:'d/m/Y H:i' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+
+                    <div class="text-center mt-4">
+                        <a href="{% url 'lista_facturas' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Volver a facturas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Historial de Inventario{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-clock-history"></i> Historial de movimientos</h3>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <div class="col-md-4">
+                    <select name="tipo" class="form-select">
+                        <option value="">Todos los tipos</option>
+                        <option value="entrada" {% if filtro_tipo == 'entrada' %}selected{% endif %}>Entrada</option>
+                        <option value="salida" {% if filtro_tipo == 'salida' %}selected{% endif %}>Salida</option>
+                        <option value="ajuste" {% if filtro_tipo == 'ajuste' %}selected{% endif %}>Ajuste</option>
+                        <option value="venta" {% if filtro_tipo == 'venta' %}selected{% endif %}>Venta</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select name="producto" class="form-select">
+                        <option value="">Todos los productos</option>
+                        {% for p in productos %}
+                        <option value="{{ p.id }}" {% if filtro_producto == p.id %}selected{% endif %}>
+                            {{ p.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Producto</th>
+                            <th>Tipo</th>
+                            <th>Cantidad</th>
+                            <th>Stock anterior</th>
+                            <th>Stock nuevo</th>
+                            <th>Motivo</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movimientos %}
+                        <tr>
+                            <td>{{ m.created_at|date:'d/m/Y H:i' }}</td>
+                            <td>{{ m.producto.nombre }}</td>
+                            <td>
+                                {% if m.tipo == 'entrada' %}
+                                <span class="badge bg-success">Entrada</span>
+                                {% elif m.tipo == 'salida' %}
+                                <span class="badge bg-warning">Salida</span>
+                                {% elif m.tipo == 'ajuste' %}
+                                <span class="badge bg-info">Ajuste</span>
+                                {% else %}
+                                <span class="badge bg-danger">Venta</span>
+                                {% endif %}
+                            </td>
+                            <td class="fw-bold">{{ m.cantidad|mil }}</td>
+                            <td>{{ m.stock_anterior|mil }}</td>
+                            <td>{{ m.stock_nuevo|mil }}</td>
+                            <td>{{ m.motivo }}</td>
+                            <td>{{ m.usuario|default:'-' }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                No hay movimientos registrados
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,531 @@
+[
+    {
+        "model": "productos.categoria",
+        "pk": 1,
+        "fields": {
+            "nombre": "Bebidas",
+            "descripcion": "Bebidas frías y calientes",
+            "activo": true
+        }
+    },
+    {
+        "model": "productos.categoria",
+        "pk": 2,
+        "fields": {
+            "nombre": "Comidas",
+            "descripcion": "Platos fuertes y entradas",
+            "activo": true
+        }
+    },
+    {
+        "model": "productos.categoria",
+        "pk": 3,
+        "fields": {
+            "nombre": "Postres",
+            "descripcion": "Postres y dulces",
+            "activo": true
+        }
+    },
+    {
+        "model": "productos.categoria",
+        "pk": 4,
+        "fields": {
+            "nombre": "Cervezas",
+            "descripcion": "Cervezas nacionales e importadas",
+            "activo": true
+        }
+    },
+    {
+        "model": "productos.categoria",
+        "pk": 5,
+        "fields": {
+            "nombre": "Licores",
+            "descripcion": "Licores y cocktails",
+            "activo": true
+        }
+    },
+    {
+        "model": "productos.unidadmedida",
+        "pk": 1,
+        "fields": {
+            "nombre": "Unidad",
+            "abreviatura": "Und"
+        }
+    },
+    {
+        "model": "productos.unidadmedida",
+        "pk": 2,
+        "fields": {
+            "nombre": "Litro",
+            "abreviatura": "Lt"
+        }
+    },
+    {
+        "model": "productos.unidadmedida",
+        "pk": 3,
+        "fields": {
+            "nombre": "Mililitro",
+            "abreviatura": "ml"
+        }
+    },
+    {
+        "model": "productos.unidadmedida",
+        "pk": 4,
+        "fields": {
+            "nombre": "Libra",
+            "abreviatura": "Lb"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 1,
+        "fields": {
+            "codigo": "B001",
+            "nombre": "Gaseosa Personal",
+            "categoria": 1,
+            "unidad": 1,
+            "precio_venta": 3000,
+            "costo": 2000,
+            "stock_actual": 50,
+            "stock_minimo": 10,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 2,
+        "fields": {
+            "codigo": "B002",
+            "nombre": "Agua sin Gas",
+            "categoria": 1,
+            "unidad": 1,
+            "precio_venta": 2000,
+            "costo": 1200,
+            "stock_actual": 40,
+            "stock_minimo": 10,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 3,
+        "fields": {
+            "codigo": "B003",
+            "nombre": "Jugo Natural",
+            "categoria": 1,
+            "unidad": 1,
+            "precio_venta": 5000,
+            "costo": 3000,
+            "stock_actual": 30,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 4,
+        "fields": {
+            "codigo": "B004",
+            "nombre": "Café Tradicional",
+            "categoria": 1,
+            "unidad": 1,
+            "precio_venta": 2500,
+            "costo": 800,
+            "stock_actual": 100,
+            "stock_minimo": 20,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 5,
+        "fields": {
+            "codigo": "C001",
+            "nombre": "Bandeja Paisa",
+            "categoria": 2,
+            "unidad": 1,
+            "precio_venta": 25000,
+            "costo": 15000,
+            "stock_actual": 20,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 6,
+        "fields": {
+            "codigo": "C002",
+            "nombre": "Sancocho de Gallina",
+            "categoria": 2,
+            "unidad": 1,
+            "precio_venta": 22000,
+            "costo": 12000,
+            "stock_actual": 15,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 7,
+        "fields": {
+            "codigo": "C003",
+            "nombre": "Hamburguesa Clásica",
+            "categoria": 2,
+            "unidad": 1,
+            "precio_venta": 15000,
+            "costo": 8000,
+            "stock_actual": 25,
+            "stock_minimo": 10,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 8,
+        "fields": {
+            "codigo": "C004",
+            "nombre": "Parrilla Mixta",
+            "categoria": 2,
+            "unidad": 1,
+            "precio_venta": 35000,
+            "costo": 20000,
+            "stock_actual": 10,
+            "stock_minimo": 3,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 9,
+        "fields": {
+            "codigo": "P001",
+            "nombre": "Tiramisú",
+            "categoria": 3,
+            "unidad": 1,
+            "precio_venta": 8000,
+            "costo": 4000,
+            "stock_actual": 15,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 10,
+        "fields": {
+            "codigo": "P002",
+            "nombre": "Flan Napolitano",
+            "categoria": 3,
+            "unidad": 1,
+            "precio_venta": 6000,
+            "costo": 3000,
+            "stock_actual": 12,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 11,
+        "fields": {
+            "codigo": "CE001",
+            "nombre": "Cerveza Águila",
+            "categoria": 4,
+            "unidad": 1,
+            "precio_venta": 4000,
+            "costo": 2500,
+            "stock_actual": 60,
+            "stock_minimo": 20,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 12,
+        "fields": {
+            "codigo": "CE002",
+            "nombre": "Cerveza Club Colombia",
+            "categoria": 4,
+            "unidad": 1,
+            "precio_venta": 4500,
+            "costo": 3000,
+            "stock_actual": 40,
+            "stock_minimo": 15,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 13,
+        "fields": {
+            "codigo": "L001",
+            "nombre": "Ron Medellín",
+            "categoria": 5,
+            "unidad": 1,
+            "precio_venta": 12000,
+            "costo": 7000,
+            "stock_actual": 20,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 14,
+        "fields": {
+            "codigo": "L002",
+            "nombre": "Vodka Smirnoff",
+            "categoria": 5,
+            "unidad": 1,
+            "precio_venta": 15000,
+            "costo": 9000,
+            "stock_actual": 15,
+            "stock_minimo": 5,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 15,
+        "fields": {
+            "codigo": "C005",
+            "nombre": "Arepa con Queso",
+            "categoria": 2,
+            "unidad": 1,
+            "precio_venta": 5000,
+            "costo": 2500,
+            "stock_actual": 30,
+            "stock_minimo": 10,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "productos.producto",
+        "pk": 16,
+        "fields": {
+            "codigo": "B005",
+            "nombre": "Limonada Natural",
+            "categoria": 1,
+            "unidad": 1,
+            "precio_venta": 4000,
+            "costo": 1500,
+            "stock_actual": 35,
+            "stock_minimo": 10,
+            "estado": "activo",
+            "created_at": "2026-07-08T02:47:58Z",
+            "updated_at": "2026-07-08T02:47:58Z"
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 1,
+        "fields": {
+            "numero": 1,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 2,
+        "fields": {
+            "numero": 2,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 3,
+        "fields": {
+            "numero": 3,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 4,
+        "fields": {
+            "numero": 4,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 5,
+        "fields": {
+            "numero": 5,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 6,
+        "fields": {
+            "numero": 6,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 7,
+        "fields": {
+            "numero": 7,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 8,
+        "fields": {
+            "numero": 8,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 9,
+        "fields": {
+            "numero": 9,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 10,
+        "fields": {
+            "numero": 10,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 11,
+        "fields": {
+            "numero": 11,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 12,
+        "fields": {
+            "numero": 12,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 13,
+        "fields": {
+            "numero": 13,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 14,
+        "fields": {
+            "numero": 14,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 15,
+        "fields": {
+            "numero": 15,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 16,
+        "fields": {
+            "numero": 16,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 17,
+        "fields": {
+            "numero": 17,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 18,
+        "fields": {
+            "numero": 18,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 19,
+        "fields": {
+            "numero": 19,
+            "estado": "libre",
+            "activa": true
+        }
+    },
+    {
+        "model": "mesas.mesa",
+        "pk": 20,
+        "fields": {
+            "numero": 20,
+            "estado": "libre",
+            "activa": true
+        }
+    }
+]

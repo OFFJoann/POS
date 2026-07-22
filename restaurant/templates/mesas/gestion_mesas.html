@@ -1,0 +1,93 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Gestionar Mesas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-grid-3x3-gap-fill"></i> Gestionar mesas</h3>
+        <a href="{% url 'vista_mesas' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Nueva mesa</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Número de mesa</label>
+                            {{ form.numero }}
+                            {% if form.numero.errors %}
+                            <div class="text-danger small mt-1">{{ form.numero.errors|join:', ' }}</div>
+                            {% endif %}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg"></i> Crear mesa
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-list"></i> Mesas registradas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Estado</th>
+                                    <th>Activa</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mesa in mesas %}
+                                <tr>
+                                    <td class="fw-bold">Mesa {{ mesa.numero }}</td>
+                                    <td>
+                                        <span class="badge fs-6 estado-{{ mesa.estado }}">
+                                            {{ mesa.get_estado_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if mesa.activa %}
+                                        <span class="text-success"><i class="bi bi-check-circle"></i> Sí</span>
+                                        {% else %}
+                                        <span class="text-danger"><i class="bi bi-x-circle"></i> No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'eliminar_mesa' mesa.id %}"
+                                           class="btn btn-sm btn-outline-danger"
+                                           onclick="return confirm('¿Eliminar Mesa {{ mesa.numero }}? Solo se pueden eliminar mesas libres.')">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No hay mesas registradas
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

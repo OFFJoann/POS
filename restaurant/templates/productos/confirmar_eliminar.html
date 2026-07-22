@@ -1,0 +1,33 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Eliminar Producto{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card border-0 shadow-sm border-danger">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3">¿Eliminar producto?</h4>
+                    <p class="text-muted">
+                        ¿Estás seguro de eliminar <strong>{{ producto.nombre }}</strong>?
+                        Esta acción no se puede deshacer.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Eliminar
+                            </button>
+                            <a href="{% url 'lista_productos' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

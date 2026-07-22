@@ -1,0 +1,51 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Nuevo Movimiento{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-arrow-left-right"></i> Registrar movimiento</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <div class="text-danger small">{{ field.errors|join:', ' }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Registrar
+                            </button>
+                            <a href="{% url 'lista_inventario' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#id_tipo').on('change', function() {
+        if ($(this).val() === 'ajuste') {
+            $('#id_cantidad').attr('step', '0.01');
+        }
+    });
+});
+</script>
+{% endblock %}

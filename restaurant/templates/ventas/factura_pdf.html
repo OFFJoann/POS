@@ -1,0 +1,91 @@
+{% load custom_filters %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Factura #{{ factura.numero }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .header p { margin: 5px 0; color: #666; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .total-row { font-size: 16px; }
+        .info { margin: 15px 0; }
+        .info div { display: inline-block; margin-right: 30px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Restaurant</h1>
+        <p>Sistema de Facturación</p>
+        <h2>Factura #{{ factura.numero }}</h2>
+    </div>
+
+    <div class="info">
+        <div><strong>Fecha:</strong> {{ factura.created_at|date:'d/m/Y' }}</div>
+        <div><strong>Hora:</strong> {{ factura.created_at|date:'H:i:s' }}</div>
+        <div><strong>Mesa:</strong> {{ factura.mesa.numero }}</div>
+        <div><strong>Mesero:</strong> {{ factura.mesero.nombre }} {{ factura.mesero.apellidos }}</div>
+        <div><strong>Método de pago:</strong> {{ factura.get_metodo_pago_display }}</div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant</th>
+                <th class="text-end">Precio</th>
+                <th class="text-end">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in detalles %}
+            <tr>
+                <td>
+                    {{ d.producto.nombre }}
+                    {% if d.es_cortesia %} *Cortesía{% elif d.precio_unitario < d.producto.precio_venta %} *Desc{% endif %}
+                </td>
+                <td class="text-center">{{ d.cantidad|mil }}</td>
+                <td class="text-end">
+                    {% if d.es_cortesia %}
+                    ${{ d.producto.precio_venta|mil }} → Gratis
+                    {% elif d.precio_unitario < d.producto.precio_venta %}
+                    ${{ d.producto.precio_venta|mil }} → ${{ d.precio_unitario|mil }}
+                    {% else %}
+                    ${{ d.precio_unitario|mil }}
+                    {% endif %}
+                </td>
+                <td class="text-end">${{ d.subtotal|mil }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table>
+        <tr>
+            <td class="text-end fw-bold">Subtotal:</td>
+            <td class="text-end">${{ factura.subtotal|mil }}</td>
+        </tr>
+        {% if factura.descuento > 0 %}
+        <tr>
+            <td class="text-end fw-bold text-success">Descuento:</td>
+            <td class="text-end">-${{ factura.descuento|mil }}</td>
+        </tr>
+        {% endif %}
+        <tr class="total-row">
+            <td class="text-end fw-bold">Total:</td>
+            <td class="text-end fw-bold">${{ factura.total|mil }}</td>
+        </tr>
+    </table>
+
+    <div style="text-align: center; margin-top: 30px; color: #666;">
+        <p>¡Gracias por su visita!</p>
+    </div>
+</body>
+</html>

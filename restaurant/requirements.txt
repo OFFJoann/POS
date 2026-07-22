@@ -1,0 +1,20 @@
+# ─── Requerimientos del proyecto Restaurant ─────────────────────────────────
+# Python 3.13+ / Django 5+
+
+Django>=5.0,<6.0
+
+# Exportación de reportes
+openpyxl>=3.1
+reportlab>=4.0
+
+# Filtrado y búsqueda
+django-filter>=23.0
+
+# Procesamiento de imágenes
+Pillow>=10.0
+
+# Decoradores y utilidades
+python-decouple>=3.8
+
+# Servidor de producción (opcional)
+# gunicorn>=21.2
