@@ -15,12 +15,6 @@
                     <div class="row g-3 mb-4">
                         <div class="col-6">
                             <div class="p-3 bg-light rounded">
-                                <small class="text-muted">Monto inicial</small>
-                                <h5>${{ caja.monto_inicial|mil }}</h5>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 bg-light rounded">
                                 <small class="text-muted">Ventas efectivo</small>
                                 <h5 class="text-success">${{ caja.total_ventas_efectivo|mil }}</h5>
                             </div>
@@ -51,18 +45,18 @@
                         </div>
                     </div>
 
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        ¿Estás seguro de cerrar la caja? Esta acción no se puede deshacer.
-                    </div>
-
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        Asegúrate de que todas las mesas estén pagadas antes de cerrar.
-                    </div>
-
                     <form method="post">
                         {% csrf_token %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            ¿Estás seguro de cerrar la caja? Esta acción no se puede deshacer.
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            Asegúrate de que todas las mesas estén pagadas antes de cerrar.
+                        </div>
+
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-danger btn-lg flex-grow-1">
                                 <i class="bi bi-lock"></i> Cerrar caja

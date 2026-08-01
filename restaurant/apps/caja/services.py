@@ -30,11 +30,10 @@ def obtener_resumen_caja(caja):
     egresos = caja.egresos.aggregate(total=Sum('valor'))['total'] or 0
 
     total_ventas = ventas_efectivo + ventas_transferencia
-    dinero_esperado = caja.monto_inicial + ventas_efectivo - egresos
+    dinero_esperado = total_ventas - egresos
     diferencia = total_ventas - egresos
 
     return {
-        'monto_inicial': caja.monto_inicial,
         'ventas_efectivo': ventas_efectivo,
         'ventas_transferencia': ventas_transferencia,
         'total_ventas': total_ventas,

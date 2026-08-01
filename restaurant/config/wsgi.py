@@ -1,5 +1,5 @@
 """
-Configuración WSGI para el proyecto Restaurant.
+Configuración WSGI para el proyecto El Choli.
 """
 import os
 from django.core.wsgi import get_wsgi_application

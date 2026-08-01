@@ -16,7 +16,7 @@ class EgresoInline(admin.TabularInline):
 class AperturaCajaAdmin(admin.ModelAdmin):
     """Administración de aperturas de caja."""
     list_display = [
-        'id', 'usuario', 'monto_inicial', 'activa',
+        'id', 'usuario', 'activa',
         'fecha_apertura', 'fecha_cierre'
     ]
     list_filter = ['activa', 'fecha_apertura']

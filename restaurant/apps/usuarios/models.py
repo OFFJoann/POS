@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 
 class Vendedor(models.Model):
     """
-    Perfil de vendedor del restaurante.
+    Perfil de vendedor de El Choli.
 
     La cédula es el identificador único para iniciar sesión.
     No se requiere contraseña.

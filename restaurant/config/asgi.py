@@ -1,5 +1,5 @@
 """
-Configuración ASGI para el proyecto Restaurant.
+Configuración ASGI para el proyecto El Choli.
 """
 import os
 from django.core.asgi import get_asgi_application

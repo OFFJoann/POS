@@ -1,5 +1,5 @@
 """
-Configuración principal del proyecto Restaurant.
+Configuración principal del proyecto El Choli.
 
 Django 5+ - Python 3.13+
 """
@@ -86,8 +86,8 @@ DATABASES = {
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'restaurant'),
-#         'USER': os.environ.get('DB_USER', 'restaurant_user'),
+#         'NAME': os.environ.get('DB_NAME', 'el_choli'),
+#         'USER': os.environ.get('DB_USER', 'el_choli_user'),
 #         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
 #         'HOST': os.environ.get('DB_HOST', 'localhost'),
 #         'PORT': os.environ.get('DB_PORT', '5432'),

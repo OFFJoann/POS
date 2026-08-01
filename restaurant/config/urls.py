@@ -1,5 +1,5 @@
 """
-URLs principales del proyecto Restaurant.
+URLs principales del proyecto El Choli.
 """
 from django.contrib import admin
 from django.urls import path, include

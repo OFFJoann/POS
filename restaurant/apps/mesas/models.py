@@ -1,7 +1,7 @@
 """
 Modelos de la aplicación mesas.
 
-Gestiona las mesas del restaurante y sus pedidos activos.
+Gestiona las mesas de El Choli y sus pedidos activos.
 """
 from django.db import models
 from django.conf import settings
@@ -9,7 +9,7 @@ from django.conf import settings
 
 class Mesa(models.Model):
     """
-    Mesa del restaurante.
+    Mesa de El Choli.
 
     Cada mesa tiene un estado visual que se refleja con colores.
     """

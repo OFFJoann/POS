@@ -9,20 +9,7 @@ class AperturaCajaForm(forms.ModelForm):
     """Formulario para abrir caja."""
     class Meta:
         model = AperturaCaja
-        fields = ['monto_inicial']
-        widgets = {
-            'monto_inicial': forms.NumberInput(attrs={
-                'class': 'form-control form-control-lg',
-                'step': '1', 'min': '0',
-                'placeholder': '0'
-            }),
-        }
-
-    def clean_monto_inicial(self):
-        monto = self.cleaned_data['monto_inicial']
-        if monto < 0:
-            raise forms.ValidationError('El monto inicial no puede ser negativo.')
-        return monto
+        fields = []
 
 
 class EgresoForm(forms.ModelForm):

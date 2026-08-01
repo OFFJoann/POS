@@ -28,7 +28,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write('🚀 Inicializando proyecto Restaurant...\n')
+        self.stdout.write('🚀 Inicializando proyecto El Choli...\n')
 
         # 1. Migraciones
         self.stdout.write('📦 Ejecutando migraciones...')

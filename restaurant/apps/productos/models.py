@@ -1,7 +1,7 @@
 """
 Modelos de la aplicación productos.
 
-Define categorías y productos del restaurante.
+Define categorías y productos de El Choli.
 """
 from django.db import models
 
@@ -42,7 +42,7 @@ class UnidadMedida(models.Model):
 
 class Producto(models.Model):
     """
-    Producto del menú del restaurante.
+    Producto del menú de El Choli.
 
     Cada producto tiene su precio, costo y control de stock.
     """

@@ -18,9 +18,6 @@ class AperturaCaja(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         verbose_name='Usuario'
     )
-    monto_inicial = models.DecimalField(
-        'Monto inicial', max_digits=12, decimal_places=2
-    )
     fecha_apertura = models.DateTimeField('Fecha apertura', auto_now_add=True)
     fecha_cierre = models.DateTimeField('Fecha cierre', null=True, blank=True)
     activa = models.BooleanField('Activa', default=True)
@@ -90,8 +87,8 @@ class AperturaCaja(models.Model):
 
     @property
     def dinero_esperado(self):
-        """Total: inicial + ventas (efectivo+transferencia) - egresos."""
-        return self.monto_inicial + self.total_ventas - self.total_egresos
+        """Total: ventas (efectivo+transferencia) - egresos."""
+        return self.total_ventas - self.total_egresos
 
     @property
     def diferencia(self):
@@ -117,7 +114,7 @@ class CategoriaEgreso(models.Model):
 
 class Egreso(models.Model):
     """
-    Registro de egreso o gasto del restaurante.
+    Registro de egreso o gasto de El Choli.
 
     Ejemplos: Compra de hielo, verduras, cambio, pago domiciliario, etc.
     """
