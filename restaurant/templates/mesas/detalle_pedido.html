@@ -45,16 +45,6 @@
     <div class="row g-3">
         <!-- Panel de productos (izquierda) -->
         <div class="col-lg-8">
-            {% if pedido.estado == 'parcial' %}
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center d-flex flex-column align-items-center justify-content-center py-5">
-                    <i class="bi bi-coin text-warning" style="font-size: 3rem;"></i>
-                    <h5 class="mt-3">Pago pendiente</h5>
-                    <p class="text-muted">Saldo pendiente por cobrar</p>
-                    <h2 class="text-warning fw-bold">${{ pedido.saldo_pendiente|mil }}</h2>
-                </div>
-            </div>
-            {% else %}
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-2">
                     <div class="input-group">
@@ -101,7 +91,6 @@
                     {% endfor %}
                 </div>
             </div>
-            {% endif %}
         </div>
 
         <!-- Panel del pedido (derecha) -->
@@ -232,6 +221,13 @@
                             <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalPagoParcial">
                                 <i class="bi bi-coin"></i> Pago parcial
                             </button>
+                            {% endif %}
+                            {% if pedido.estado == 'activo' or pedido.estado == 'parcial' %}
+                            {% if user.is_staff %}
+                            <a href="{% url 'trasladar_pedido' pedido.id %}" class="btn btn-outline-info">
+                                <i class="bi bi-arrow-repeat"></i> Trasladar
+                            </a>
+                            {% endif %}
                             {% endif %}
                             {% endif %}
                         </div>

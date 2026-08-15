@@ -1,0 +1,44 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Trasladar Pedido - Mesa {{ pedido.mesa.numero }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Trasladar Pedido</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Pedido <strong>#{{ pedido.id }}</strong> está en la
+                        <strong>Mesa {{ pedido.mesa.numero }}</strong>.
+                        Selecciona la mesa destino:
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Mesa destino</label>
+                            <select name="nueva_mesa" class="form-select form-select-lg" required>
+                                <option value="">-- Seleccionar mesa --</option>
+                                {% for mesa in mesas_disponibles %}
+                                <option value="{{ mesa.id }}">Mesa {{ mesa.numero }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-arrow-right"></i> Trasladar
+                            </button>
+                            <a href="{% url 'detalle_pedido' pedido.id %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

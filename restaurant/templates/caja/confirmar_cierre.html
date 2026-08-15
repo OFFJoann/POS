@@ -43,10 +43,27 @@
                                 <h5 class="text-primary">${{ caja.dinero_esperado|mil }}</h5>
                             </div>
                         </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Total (inic.+ventas−egresos)</small>
+                                <h5 class="text-primary">${{ caja.dinero_esperado|mil }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Efectivo contado</small>
+                                <h5 class="text-warning">${{ caja.total_ventas_efectivo|mil }}</h5>
+                            </div>
+                        </div>
                     </div>
 
                     <form method="post">
                         {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">¿Cuánto efectivo contaste en la caja?</label>
+                            <input type="number" name="efectivo_conteo" class="form-control form-control-lg"
+                                   step="1" min="0" value="{{ caja.total_ventas_efectivo|floatformat:0 }}" required>
+                        </div>
                         <div class="alert alert-warning">
                             <i class="bi bi-exclamation-triangle"></i>
                             ¿Estás seguro de cerrar la caja? Esta acción no se puede deshacer.

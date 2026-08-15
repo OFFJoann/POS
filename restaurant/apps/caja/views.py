@@ -3,11 +3,12 @@ Vistas de la aplicación caja.
 
 Incluye apertura, cierre de caja y gestión de egresos.
 """
+from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from .models import AperturaCaja, Egreso, CategoriaEgreso
+from .models import AperturaCaja, CierreCaja, Egreso, CategoriaEgreso
 from .forms import AperturaCajaForm, EgresoForm
 from apps.usuarios.decorators import admin_required
 from apps.mesas.models import Mesa
@@ -84,18 +85,47 @@ def cerrar_caja(request):
         return redirect('estado_caja')
 
     if request.method == 'POST':
+        efectivo_conteo = Decimal(request.POST.get('efectivo_conteo', 0))
+
         caja.activa = False
         caja.fecha_cierre = timezone.now()
         caja.save()
+
+        CierreCaja.objects.create(
+            caja=caja,
+            usuario=request.user,
+            monto_inicial=0,
+            total_ventas_efectivo=caja.total_ventas_efectivo,
+            total_ventas_transferencia=caja.total_ventas_transferencia,
+            total_ventas=caja.total_ventas,
+            total_egresos=caja.total_egresos,
+            total_egresos_efectivo=caja.total_egresos_efectivo,
+            total_egresos_transferencia=caja.total_egresos_transferencia,
+            dinero_esperado=caja.dinero_esperado,
+            efectivo_conteo=efectivo_conteo,
+            diferencia=efectivo_conteo - caja.dinero_esperado,
+        )
 
         messages.success(
             request,
             f'Caja cerrada. Dinero esperado: ${caja.dinero_esperado:0f}'
         )
-        return redirect('estado_caja')
+        return redirect('consolidados')
 
     return render(request, 'caja/confirmar_cierre.html', {
         'caja': caja,
+    })
+
+
+@login_required
+@admin_required
+def lista_consolidados(request):
+    """
+    Muestra el historial de cierres de caja consolidados.
+    """
+    cierres = CierreCaja.objects.all().order_by('-fecha_cierre')
+    return render(request, 'caja/consolidados.html', {
+        'cierres': cierres,
     })
 
 

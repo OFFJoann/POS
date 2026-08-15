@@ -14,4 +14,5 @@ urlpatterns = [
     path('egresos/<int:pk>/eliminar/', views.eliminar_egreso, name='eliminar_egreso'),
     path('egresos/categorias/', views.gestionar_categorias_egreso, name='gestionar_categorias_egreso'),
     path('egresos/categorias/eliminar/<int:pk>/', views.eliminar_categoria_egreso, name='eliminar_categoria_egreso'),
+    path('consolidados/', views.lista_consolidados, name='consolidados'),
 ]

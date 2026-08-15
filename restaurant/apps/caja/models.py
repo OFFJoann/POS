@@ -96,6 +96,75 @@ class AperturaCaja(models.Model):
         return self.total_ventas - self.total_egresos
 
 
+class CierreCaja(models.Model):
+    """
+    Registro de cierre de caja con resumen consolidado del día.
+
+    Se crea automáticamente al cerrar una AperturaCaja.
+    Almacena el resumen de ventas, egresos y dinero esperado
+    para consulta histórica.
+    """
+    caja = models.ForeignKey(
+        AperturaCaja, on_delete=models.CASCADE,
+        related_name='cierres',
+        verbose_name='Caja'
+    )
+    fecha_cierre = models.DateTimeField('Fecha de cierre', auto_now_add=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, verbose_name='Usuario'
+    )
+    monto_inicial = models.DecimalField(
+        'Monto inicial', max_digits=12, decimal_places=2, default=0
+    )
+    total_ventas_efectivo = models.DecimalField(
+        'Ventas en efectivo', max_digits=12, decimal_places=2, default=0
+    )
+    total_ventas_transferencia = models.DecimalField(
+        'Ventas por transferencia', max_digits=12, decimal_places=2, default=0
+    )
+    total_ventas = models.DecimalField(
+        'Total ventas', max_digits=12, decimal_places=2, default=0
+    )
+    total_egresos = models.DecimalField(
+        'Total egresos', max_digits=12, decimal_places=2, default=0
+    )
+    total_egresos_efectivo = models.DecimalField(
+        'Egresos en efectivo', max_digits=12, decimal_places=2, default=0
+    )
+    total_egresos_transferencia = models.DecimalField(
+        'Egresos por transferencia', max_digits=12, decimal_places=2, default=0
+    )
+    dinero_esperado = models.DecimalField(
+        'Dinero esperado', max_digits=12, decimal_places=2, default=0
+    )
+    efectivo_conteo = models.DecimalField(
+        'Efectivo contado', max_digits=12, decimal_places=2, default=0,
+        help_text='Efectivo físico contado al cerrar la caja'
+    )
+    diferencia = models.DecimalField(
+        'Diferencia', max_digits=12, decimal_places=2, default=0
+    )
+    observaciones = models.TextField('Observaciones', blank=True)
+
+    class Meta:
+        verbose_name = 'Cierre de caja'
+        verbose_name_plural = 'Cierres de caja'
+        ordering = ['-fecha_cierre']
+
+    def __str__(self):
+        return f'Cierre {self.fecha_cierre.strftime("%d/%m/%Y")} - ${self.dinero_esperado:0f}'
+
+    @property
+    def facturas_del_dia(self):
+        """Retorna las facturas generadas entre la apertura y cierre de esta caja."""
+        from apps.ventas.models import Factura
+        return Factura.objects.filter(
+            created_at__gte=self.caja.fecha_apertura,
+            created_at__lte=self.fecha_cierre,
+        ).order_by('-numero')
+
+
 class CategoriaEgreso(models.Model):
     """
     Categoría para clasificar egresos.

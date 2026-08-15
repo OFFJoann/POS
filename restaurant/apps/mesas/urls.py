@@ -20,4 +20,5 @@ urlpatterns = [
     path('pedido/<int:pedido_id>/cobrar/', views.cobrar_pedido, name='cobrar_pedido'),
     path('pedido/<int:pedido_id>/pago-parcial/', views.pago_parcial, name='pago_parcial'),
     path('pedido/<int:pedido_id>/cambiar-mesero/', views.cambiar_mesero, name='cambiar_mesero'),
+    path('pedido/<int:pedido_id>/trasladar/', views.trasladar_pedido, name='trasladar_pedido'),
 ]

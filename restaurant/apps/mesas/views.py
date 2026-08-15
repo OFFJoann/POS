@@ -194,8 +194,8 @@ def agregar_producto(request, pedido_id):
     """
     pedido = get_object_or_404(Pedido, pk=pedido_id)
 
-    if pedido.estado != 'activo':
-        messages.error(request, 'No se pueden agregar productos a un pedido pagado o en pago parcial.')
+    if pedido.estado not in ('activo', 'parcial'):
+        messages.error(request, 'No se pueden agregar productos a un pedido pagado o cerrado.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
     if pedido.mesero != request.user.vendedor and not request.user.is_staff:
@@ -237,8 +237,8 @@ def quitar_producto(request, pedido_id, detalle_id):
     """
     if request.method == 'POST':
         detalle = get_object_or_404(DetallePedido, pk=detalle_id, pedido_id=pedido_id)
-        if detalle.pedido.estado != 'activo':
-            messages.error(request, 'No se puede modificar un pedido pagado o en pago parcial.')
+        if detalle.pedido.estado not in ('activo', 'parcial'):
+            messages.error(request, 'No se puede modificar un pedido pagado o cerrado.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
         if detalle.pedido.mesero != request.user.vendedor and not request.user.is_staff:
             messages.error(request, 'Permiso denegado.')
@@ -550,3 +550,38 @@ def cambiar_mesero(request, pedido_id):
             messages.success(request, f'Mesero cambiado a {mesero}')
 
     return redirect('detalle_pedido', pedido_id=pedido_id)
+
+
+@login_required
+@admin_required
+def trasladar_pedido(request, pedido_id):
+    """
+    Traslada un pedido activo de una mesa a otra.
+    """
+    pedido = get_object_or_404(Pedido, pk=pedido_id, estado__in=['activo', 'parcial'])
+    mesas_disponibles = Mesa.objects.filter(activa=True).exclude(pk=pedido.mesa_id)
+
+    if request.method == 'POST':
+        nueva_mesa_id = request.POST.get('nueva_mesa')
+        if nueva_mesa_id:
+            nueva_mesa = get_object_or_404(Mesa, pk=nueva_mesa_id, activa=True)
+            mesa_anterior = pedido.mesa
+            pedido.mesa = nueva_mesa
+            pedido.save()
+
+            mesa_anterior.estado = 'libre'
+            mesa_anterior.save()
+
+            nueva_mesa.estado = 'activo'
+            nueva_mesa.save()
+
+            messages.success(
+                request,
+                f'Pedido trasladado de Mesa {mesa_anterior.numero} a Mesa {nueva_mesa.numero}.'
+            )
+            return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    return render(request, 'mesas/trasladar_pedido.html', {
+        'pedido': pedido,
+        'mesas_disponibles': mesas_disponibles,
+    })
