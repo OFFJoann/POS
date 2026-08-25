@@ -98,13 +98,8 @@ def exportar_ventas_pdf(request):
     if fecha_hasta:
         facturas = facturas.filter(created_at__lte=fecha_hasta)
 
-    from apps.ventas.services import render_pdf
-    response = render_pdf('reportes/reporte_ventas_pdf.html', {
-        'facturas': facturas,
-        'fecha_generacion': datetime.now(),
-    })
-    response['Content-Disposition'] = 'attachment; filename=reporte_ventas.pdf'
-    return response
+    from apps.ventas.services import generar_reporte_ventas_pdf
+    return generar_reporte_ventas_pdf(facturas, datetime.now())
 
 
 def _agregar_ganancia(queryset):

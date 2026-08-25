@@ -15,6 +15,7 @@ from apps.mesas.models import Mesa
 
 
 @login_required
+@admin_required
 def estado_caja(request):
     """
     Muestra el estado actual de la caja.

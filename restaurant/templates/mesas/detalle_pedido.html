@@ -80,7 +80,7 @@
                                     {% endif %}
                                     <div class="min-width-0">
                                         <small class="text-muted d-block">{{ producto.codigo }}</small>
-                                        <span class="d-block fw-bold" style="font-size: 0.85rem; line-height: 1.2;">{{ producto.nombre }}</span>
+                                        <span class="d-block fw-bold text-break" style="font-size: 0.85rem; line-height: 1.2;">{{ producto.nombre }}</span>
                                         <span class="d-block text-primary fw-bold">${{ producto.precio_venta|mil }}</span>
                                     </div>
                                 </button>
@@ -101,7 +101,7 @@
                 </div>
                 <div class="card-body p-0">
                     <!-- Lista de productos en el pedido -->
-                    <div style="max-height: 35vh; overflow-y: auto;">
+                    <div class="table-responsive" style="max-height: 35vh; overflow-y: auto;">
                         <table class="table table-sm mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -270,6 +270,16 @@
                             {% endif %}
                         </select>
                     </div>
+                    <div class="qr-consignacion text-center mb-3 d-none">
+                        {% if configuracion.qr_consignacion %}
+                        <p class="text-muted small mb-1">Escanea el código QR para consignar el pago</p>
+                        <img src="{{ configuracion.qr_consignacion.url }}" alt="QR de consignación"
+                             style="max-height: 320px; cursor: pointer;" class="qr-img img-fluid img-thumbnail">
+                        <p class="small text-primary mb-0 mt-1"><i class="bi bi-zoom-in"></i> Toca para ampliar</p>
+                        {% else %}
+                        <div class="alert alert-warning py-2 mb-0 small">No hay un QR de consignación configurado.</div>
+                        {% endif %}
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Valor recibido</label>
                         <input type="number" name="valor_recibido" class="form-control form-control-lg"
@@ -310,6 +320,16 @@
                             <option value="transferencia">Transferencia</option>
                             <option value="cortesia">Cortesía</option>
                         </select>
+                    </div>
+                    <div class="qr-consignacion text-center mb-3 d-none">
+                        {% if configuracion.qr_consignacion %}
+                        <p class="text-muted small mb-1">Escanea el código QR para consignar el pago</p>
+                        <img src="{{ configuracion.qr_consignacion.url }}" alt="QR de consignación"
+                             style="max-height: 320px; cursor: pointer;" class="qr-img img-fluid img-thumbnail">
+                        <p class="small text-primary mb-0 mt-1"><i class="bi bi-zoom-in"></i> Toca para ampliar</p>
+                        {% else %}
+                        <div class="alert alert-warning py-2 mb-0 small">No hay un QR de consignación configurado.</div>
+                        {% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto a pagar</label>
@@ -367,6 +387,42 @@
     <input type="hidden" name="producto_id" id="input-producto-id">
     <input type="hidden" name="cantidad" id="input-cantidad" value="1">
 </form>
+
+<!-- Modal para ampliar el QR de consignación -->
+<div class="modal fade" id="modalAmpliarQR" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-qr-code"></i> QR de consignación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="imgQRGrande" src="" alt="QR de consignación" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Barra inferior fija para cobrar en móvil -->
+<div class="mobile-cobrar-bar">
+    <div class="d-flex justify-content-between align-items-center px-3 py-2">
+        <div>
+            <small class="text-muted d-block">Total</small>
+            <span class="fw-bold fs-5 text-primary">${{ pedido.total|mil }}</span>
+        </div>
+        <div class="ms-3 flex-grow-1">
+            {% if pedido.estado != 'pagado' and pedido.estado != 'cerrado' and pedido.total > 0 %}
+            <button class="btn btn-success btn-lg w-100" data-bs-toggle="modal" data-bs-target="#modalCobrar">
+                <i class="bi bi-cash"></i> Cobrar
+            </button>
+            {% else %}
+            <button class="btn btn-secondary btn-lg w-100" disabled>
+                {% if pedido.estado == 'pagado' or pedido.estado == 'cerrado' %}Pedido cerrado{% else %}Agrega productos{% endif %}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -424,8 +480,8 @@ $(document).ready(function() {
     $('#buscador-productos').on('input', function() {
         var texto = $(this).val().toLowerCase();
         $('.producto-btn-wrapper').each(function() {
-            var nombre = $(this).data('nombre');
-            var codigo = $(this).data('codigo');
+            var nombre = String($(this).data('nombre') || '').toLowerCase();
+            var codigo = String($(this).data('codigo') || '').toLowerCase();
             if (nombre.includes(texto) || codigo.includes(texto)) {
                 $(this).show();
                 $(this).closest('.categoria-productos').show();
@@ -470,6 +526,35 @@ $(document).ready(function() {
     // Actualizar precio al cambiar
     $('.precio-input').on('change', function() {
         $(this).closest('form').submit();
+    });
+
+    // Mostrar QR de consignación al elegir transferencia en los modales de cobro
+    function actualizarQR(modal) {
+        var select = modal.querySelector('select[name="metodo_pago"]');
+        var qr = modal.querySelector('.qr-consignacion');
+        if (select && qr) {
+            if (select.value === 'transferencia') {
+                qr.classList.remove('d-none');
+            } else {
+                qr.classList.add('d-none');
+            }
+        }
+    }
+    document.querySelectorAll('.modal').forEach(function(modal) {
+        var select = modal.querySelector('select[name="metodo_pago"]');
+        if (select) {
+            select.addEventListener('change', function() {
+                actualizarQR(modal);
+            });
+            actualizarQR(modal);
+        }
+    });
+
+    // Ampliar el QR de consignación al hacer clic
+    $('.qr-img').on('click', function() {
+        $('#imgQRGrande').attr('src', $(this).attr('src'));
+        var modalQR = new bootstrap.Modal(document.getElementById('modalAmpliarQR'));
+        modalQR.show();
     });
 });
 </script>

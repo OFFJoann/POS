@@ -48,10 +48,10 @@
                         <i class="bi bi-image text-muted" style="font-size: 1.5rem;"></i>
                     </div>
                     {% endif %}
-                    <div class="card-body py-3">
-                        <h6 class="card-title mb-1">{{ p.nombre }}</h6>
+                    <div class="card-body py-3 min-width-0">
+                        <h6 class="card-title mb-1 text-break">{{ p.nombre }}</h6>
                         <h4 class="text-primary mb-0">${{ p.precio_venta|mil }}</h4>
-                        <small class="text-muted">{{ p.categoria.nombre }}</small>
+                        <small class="text-muted text-break d-block">{{ p.categoria.nombre }}</small>
                     </div>
                 </div>
             </div>
@@ -64,13 +64,21 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    function normalizar(s) {
+        s = (s === null || s === undefined) ? '' : String(s);
+        return s.normalize('NFD').split('').filter(function(c) {
+            var code = c.charCodeAt(0);
+            return code < 0x300 || code > 0x36f;
+        }).join('');
+    }
+
     function filtrar() {
-        var texto = $('#buscador-precios').val().toLowerCase();
+        var texto = normalizar($('#buscador-precios').val().toLowerCase());
         var categoria = $('#filtro-categoria').val();
 
         $('.precio-item').each(function() {
-            var nombre = $(this).data('nombre');
-            var codigo = $(this).data('codigo');
+            var nombre = normalizar($(this).data('nombre'));
+            var codigo = normalizar($(this).data('codigo'));
             var cat = $(this).data('categoria');
             var coincide = (!texto || nombre.includes(texto) || codigo.includes(texto));
             var coincideCat = (!categoria || cat === categoria);

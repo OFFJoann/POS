@@ -68,15 +68,9 @@ def factura_pdf(request, factura_id):
     Genera y descarga el PDF de una factura.
     """
     factura = get_object_or_404(Factura, pk=factura_id)
-    detalles = factura.pedido.detalles.select_related('producto').all()
 
-    from .services import render_pdf
-    response = render_pdf('ventas/factura_pdf.html', {
-        'factura': factura,
-        'detalles': detalles,
-    })
-    response['Content-Disposition'] = f'filename=factura_{factura.numero}.pdf'
-    return response
+    from .services import generar_factura_pdf
+    return generar_factura_pdf(factura)
 
 
 @login_required

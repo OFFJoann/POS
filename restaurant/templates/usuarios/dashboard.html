@@ -34,6 +34,7 @@
 
     <!-- Tarjetas de resumen -->
     <div class="row g-3 mb-4">
+        {% if user.is_staff %}
         <div class="col-md-3">
             <div class="card border-0 shadow-sm bg-primary text-white">
                 <div class="card-body">
@@ -78,6 +79,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
         <div class="col-md-3">
             <div class="card border-0 shadow-sm bg-info text-white">
                 <div class="card-body">
@@ -126,8 +128,8 @@
         </div>
     </div>
 
-    <!-- Stock bajo -->
-    {% if stock_bajo %}
+    <!-- Stock bajo (solo administradores) -->
+    {% if user.is_staff and stock_bajo %}
     <div class="row">
         <div class="col-12">
             <div class="card border-0 shadow-sm border-warning">

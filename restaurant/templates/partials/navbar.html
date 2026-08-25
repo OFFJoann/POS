@@ -1,7 +1,12 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="{% url 'dashboard' %}">
-            <i class="bi bi-shop"></i> El Choli
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}">
+            {% if configuracion.logo %}
+                <img src="{{ configuracion.logo.url }}" alt="Logo" height="30" class="me-2">
+            {% else %}
+                <i class="bi bi-shop me-2"></i>
+            {% endif %}
+            {{ configuracion.nombre_empresa }}
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
@@ -80,6 +85,9 @@
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><span class="dropdown-item-text text-muted"><small>{{ user.vendedor.cedula }}</small></span></li>
                         <li><hr class="dropdown-divider"></li>
+                        {% if user.is_staff %}
+                        <li><a class="dropdown-item" href="{% url 'editar_configuracion' %}"><i class="bi bi-gear"></i> Configuración</a></li>
+                        {% endif %}
                         <li><a class="dropdown-item text-danger" href="{% url 'salir' %}"><i class="bi bi-box-arrow-right"></i> Salir</a></li>
                     </ul>
                 </li>

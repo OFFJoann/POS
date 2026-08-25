@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
     # Apps del sistema
     'apps.usuarios',
+    'apps.configuracion',
     'apps.productos',
     'apps.inventario',
     'apps.mesas',
@@ -67,6 +68,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.ventas.context_processors.caja_abierta',
+                'apps.configuracion.context_processors.configuracion',
             ],
         },
     },
