@@ -55,6 +55,7 @@ class Command(BaseCommand):
             eliminados['pagos'] = Pago.objects.all().delete()[0]
             eliminados['facturas'] = Factura.objects.all().delete()[0]
             eliminados['pedidos'] = Pedido.objects.all().delete()[0]
+            eliminados['mesas_abiertas'] = Mesa.objects.exclude(estado='libre').update(estado='libre')
             eliminados['movimientos_inventario'] = MovimientoInventario.objects.all().delete()[0]
             eliminados['consumos_internos'] = ConsumoInterno.objects.all().delete()[0]
             eliminados['egresos'] = Egreso.objects.all().delete()[0]

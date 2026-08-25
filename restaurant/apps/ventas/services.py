@@ -251,6 +251,8 @@ def generar_reporte_ventas_pdf(facturas, fecha_generacion):
         pdf.text(cols[i], y, h, size=9, bold=True)
     y += 4
     pdf.line(x, y, pdf.W - x, y, 0.5); y += 12
+    if not facturas:
+        pdf.text(x, y, 'No existen facturas para mostrar.', size=11, bold=True)
     for f in facturas:
         pdf.text(cols[0], y, str(f.numero), size=9)
         pdf.text(cols[1], y, f.created_at.strftime('%d/%m/%Y'), size=9)
