@@ -1,5 +1,5 @@
 {% extends 'base/base.html' %}
-{% load custom_filters %}
+{% load custom_filters permisos_tags %}
 
 {% block title %}Caja{% endblock %}
 
@@ -8,7 +8,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3><i class="bi bi-cash-stack"></i> Caja</h3>
         <div class="d-flex gap-2">
-            {% if user.is_staff %}
+            {% if user|puede:"caja" %}
                 {% if caja %}
                     <a href="{% url 'registrar_egreso' %}" class="btn btn-outline-danger">
                         <i class="bi bi-cash"></i> Egreso
@@ -26,6 +26,7 @@
     </div>
 
     {% if caja %}
+    {% if puede_ver_totales %}
     <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm bg-success text-white">
@@ -61,7 +62,64 @@
         </div>
     </div>
 
-    <!-- Egresos del día -->
+    <!-- Resumen de cobro -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-cash"></i> Resumen de cobro</h5>
+        </div>
+        <div class="card-body">
+            <div class="d-flex justify-content-between border-bottom py-1">
+                <span>Ya cobrado (ventas de la caja)</span>
+                <span class="fw-bold">${{ ya_cobrado|mil }}</span>
+            </div>
+            <div class="d-flex justify-content-between border-bottom py-1">
+                <span>Falta por cobrar (pedidos activos)</span>
+                <span class="fw-bold text-warning">${{ falta_por_cobrar|mil }}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold pt-1">
+                <span>Total proyectado (cobrado + pendiente)</span>
+                <span>${{ total_proyectado|mil }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comisiones por vendedor -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-cash-coin"></i> Comisiones por vendedor</h5>
+        </div>
+        <div class="card-body">
+            {% if comisiones %}
+            {% for c in comisiones %}
+            <div class="mb-2">
+                <div class="d-flex justify-content-between fw-bold">
+                    <span>{{ c.nombre }} {{ c.apellidos }}</span>
+                    <span class="text-success">${{ c.total|mil }}</span>
+                </div>
+                <ul class="small text-muted mb-0">
+                    {% for l in c.lineas %}
+                    <li>{{ l.producto }} x{{ l.cantidad }} — ${{ l.comision|mil }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+            <div class="d-flex justify-content-between fw-bold border-top pt-1">
+                <span>Total comisiones</span>
+                <span class="text-success">${{ total_comisiones|mil }}</span>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Sin ventas registradas en esta caja.</p>
+            {% endif %}
+        </div>
+        </div>
+        {% else %}
+        <div class="alert alert-secondary mb-4">
+            <i class="bi bi-eye-slash"></i>
+            No tienes permiso para ver los totales de la caja.
+        </div>
+        {% endif %}
+
+        <!-- Egresos del día -->
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-cash"></i> Egresos registrados</h5>
@@ -144,7 +202,7 @@
             <i class="bi bi-cash-stack text-muted" style="font-size: 4rem;"></i>
             <h4 class="mt-3">No hay caja abierta</h4>
             <p class="text-muted">Abre la caja para comenzar a registrar ventas.</p>
-            {% if user.is_staff %}
+            {% if user|puede:"caja" %}
             <a href="{% url 'abrir_caja' %}" class="btn btn-success btn-lg">
                 <i class="bi bi-unlock"></i> Abrir caja
             </a>

@@ -7,7 +7,7 @@ class ProductoForm(forms.ModelForm):
         model = Producto
         fields = [
             'codigo', 'nombre', 'categoria', 'unidad',
-            'precio_venta', 'costo', 'stock_actual',
+            'precio_venta', 'costo', 'comision', 'stock_actual',
             'stock_minimo', 'imagen', 'estado'
         ]
         widgets = {
@@ -19,6 +19,9 @@ class ProductoForm(forms.ModelForm):
                 'class': 'form-control', 'step': '1'
             }),
             'costo': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '1'
+            }),
+            'comision': forms.NumberInput(attrs={
                 'class': 'form-control', 'step': '1'
             }),
             'stock_actual': forms.NumberInput(attrs={

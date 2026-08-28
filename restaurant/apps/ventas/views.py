@@ -3,23 +3,28 @@ Vistas de la aplicación ventas.
 
 Incluye listado de facturas, detalle y exportación PDF.
 """
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
 from io import BytesIO
 from datetime import date
 from .models import Factura
+from apps.usuarios.decorators import permiso_required
 
 
 @login_required
+@permiso_required('ver_facturas')
 def lista_facturas(request):
     """
-    Lista todas las facturas generadas.
+    Lista las facturas generadas.
 
-    Los administradores ven todas, los vendedores solo las suyas.
+    Administradores y quienes tienen 'ver_facturas' ven todas las facturas;
+    los demás vendedores solo ven las suyas.
     """
-    if request.user.is_staff:
+    v = getattr(request.user, 'vendedor', None)
+    if request.user.is_staff or (v and v.puede('ver_facturas')):
         facturas = Factura.objects.select_related('mesa', 'mesero').all()
     else:
         facturas = Factura.objects.filter(
@@ -43,6 +48,26 @@ def lista_facturas(request):
     })
 
 
+def _puede_ver_factura(user, factura=None):
+    """
+    Reglas para ver una factura:
+    - Administrador: siempre, cualquier factura.
+    - Permiso 'ver_facturas': ve cualquier factura.
+    - Solo 'facturar' (sin 'ver_facturas'): solo sus propias facturas.
+    - Sin permisos: ninguna.
+    """
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True
+    v = getattr(user, 'vendedor', None)
+    if not v:
+        return False
+    if v.puede('ver_facturas'):
+        return True
+    if v.puede('facturar'):
+        return factura is None or factura.mesero_id == v.id
+    return False
+
+
 @login_required
 def ver_factura(request, factura_id):
     """
@@ -52,6 +77,9 @@ def ver_factura(request, factura_id):
         Factura.objects.select_related('mesa', 'mesero', 'pedido'),
         pk=factura_id
     )
+    if not _puede_ver_factura(request.user, factura):
+        messages.error(request, 'No tienes permiso para ver esta factura.')
+        return redirect('vista_mesas')
     detalles = factura.pedido.detalles.select_related('producto').all()
     pagos = factura.pagos.all()
 
@@ -68,12 +96,16 @@ def factura_pdf(request, factura_id):
     Genera y descarga el PDF de una factura.
     """
     factura = get_object_or_404(Factura, pk=factura_id)
+    if not _puede_ver_factura(request.user, factura):
+        messages.error(request, 'No tienes permiso para ver esta factura.')
+        return redirect('vista_mesas')
 
     from .services import generar_factura_pdf
     return generar_factura_pdf(factura)
 
 
 @login_required
+@permiso_required('ver_facturas')
 def buscar_facturas(request):
     """
     Búsqueda instantánea de facturas.

@@ -100,6 +100,34 @@
         </div>
     </div>
 
+    <!-- Comisiones por vendedor -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="mb-3"><i class="bi bi-cash-coin"></i> Comisiones por vendedor</h6>
+            {% if comisiones %}
+            {% for c in comisiones %}
+            <div class="mb-2">
+                <div class="d-flex justify-content-between fw-bold">
+                    <span>{{ c.nombre }} {{ c.apellidos }}</span>
+                    <span class="text-success">${{ c.total|mil }}</span>
+                </div>
+                <ul class="small text-muted mb-0">
+                    {% for l in c.lineas %}
+                    <li>{{ l.producto }} x{{ l.cantidad }} — ${{ l.comision|mil }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+            <div class="d-flex justify-content-between fw-bold border-top pt-1">
+                <span>Total comisiones</span>
+                <span class="text-success">${{ total_comisiones|mil }}</span>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Sin comisiones en el período seleccionado.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Tabla -->
     <div class="card border-0 shadow-sm">
         <div class="card-body">

@@ -1,5 +1,5 @@
 {% extends 'base/base.html' %}
-{% load static custom_filters %}
+{% load static custom_filters permisos_tags %}
 
 {% block title %}Mesas{% endblock %}
 
@@ -44,8 +44,10 @@
                 </div>
             </div>
             {% else %}
+            {% if user|puede:"facturar" %}
             <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none">
-                <div class="card mesa-card mesa-{{ mesa.estado }}" data-mesa-id="{{ mesa.id }}">
+            {% endif %}
+                <div class="card mesa-card mesa-{{ mesa.estado }}{% if not user|puede:"facturar" %} opacity-50{% endif %}" data-mesa-id="{{ mesa.id }}">
                     <div class="card-body text-center py-4">
                         <h4 class="card-title mb-2">Mesa {{ mesa.numero }}</h4>
                         <div class="mesa-estado-badge mb-2">
@@ -63,7 +65,9 @@
                         {% endif %}
                     </div>
                 </div>
+            {% if user|puede:"facturar" %}
             </a>
+            {% endif %}
             {% endif %}
         </div>
         {% endwith %}

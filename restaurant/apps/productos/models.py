@@ -69,6 +69,10 @@ class Producto(models.Model):
     )
     precio_venta = models.IntegerField('Precio de venta')
     costo = models.IntegerField('Costo', default=0)
+    comision = models.IntegerField(
+        'Comisión por unidad', default=0,
+        help_text='Monto que gana el vendedor por vender una unidad de este producto'
+    )
     stock_actual = models.IntegerField('Stock actual', default=0)
     stock_minimo = models.IntegerField('Stock mínimo', default=0)
     imagen = models.ImageField(

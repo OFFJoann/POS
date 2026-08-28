@@ -111,6 +111,7 @@ class _PDF:
         self.W = width
         self.H = height
         self.ops = []
+        self.images = []
 
     @staticmethod
     def _esc(s):
@@ -130,37 +131,96 @@ class _PDF:
         y2 = self.H - y2_top
         self.ops.append(f'{w} w {x1:.1f} {y1:.1f} m {x2:.1f} {y2:.1f} l S')
 
+    def image(self, path, x, y_top, max_width, max_height):
+        """Inserta una imagen (logo) embebida respetando su proporción.
+
+        max_width/max_height definen el cuadro máximo; la imagen se
+        escala para caber sin deformarse.
+        """
+        try:
+            from PIL import Image
+            import zlib
+        except Exception:
+            return None
+        try:
+            img = Image.open(path).convert('RGB')
+        except Exception:
+            return None
+        iw, ih = img.size
+        if iw and ih:
+            scale = min(max_width / iw, max_height / ih)
+        else:
+            scale = 1
+        w = max(1, int(round(iw * scale)))
+        h = max(1, int(round(ih * scale)))
+        img = img.resize((w, h))
+        raw = img.tobytes()
+        comp = zlib.compress(raw)
+        name = 'Im%d' % len(self.images)
+        self.images.append({'data': comp, 'w': w, 'h': h, 'name': name})
+        y = self.H - y_top
+        self.ops.append(
+            f'q {w:.1f} 0 0 {h:.1f} {x:.1f} {y - h:.1f} cm /{name} Do Q'
+        )
+        return name
+
     def build(self):
         W, H = self.W, self.H
         content = '\n'.join(self.ops)
         content_bytes = content.encode('cp1252', 'replace')
+
         font_reg = ("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
                     "/Encoding /WinAnsiEncoding >>")
         font_bold = ("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold "
                      "/Encoding /WinAnsiEncoding >>")
+
+        xobj_res = ''
+        img_bodies = {}
+        for im in self.images:
+            num = 7 + len(img_bodies)
+            img_dict = (
+                f"<< /Type /XObject /Subtype /Image /Width {im['w']} "
+                f"/Height {im['h']} /ColorSpace /DeviceRGB "
+                f"/BitsPerComponent 8 /Filter /FlateDecode "
+                f"/Length {len(im['data'])} >>\nstream\n"
+            ).encode('cp1252', 'replace') + im['data'] + b"\nendstream"
+            img_bodies[num] = img_dict
+            xobj_res += f"/{im['name']} {num} 0 R "
+
+        if xobj_res:
+            resources = (f"<< /Font << /F1 4 0 R /F2 5 0 R >> "
+                         f"/XObject << {xobj_res}>> >>")
+        else:
+            resources = "<< /Font << /F1 4 0 R /F2 5 0 R >> >>"
+
         page = (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {W} {H}] "
-                f"/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> "
-                f"/Contents 6 0 R >>")
+                f"/Resources {resources} /Contents 6 0 R >>")
         pages = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"
         catalog = "<< /Type /Catalog /Pages 2 0 R >>"
-        header = "<< /Length %d >>\nstream\n" % len(content_bytes)
-        objects = {1: catalog, 2: pages, 3: page, 4: font_reg, 5: font_bold}
+
         out = bytearray()
         out += b"%PDF-1.4\n"
         offsets = {}
-        for num in (1, 2, 3, 4, 5):
+        for num, body in ((1, catalog), (2, pages), (3, page),
+                          (4, font_reg), (5, font_bold)):
             offsets[num] = len(out)
-            out += ("%d 0 obj\n%s\nendobj\n" % (num, objects[num])).encode('cp1252', 'replace')
+            out += ("%d 0 obj\n%s\nendobj\n" % (num, body)).encode('cp1252', 'replace')
         offsets[6] = len(out)
-        out += ("6 0 obj\n" + header).encode('cp1252', 'replace')
+        out += ("6 0 obj\n<< /Length %d >>\nstream\n" % len(content_bytes)).encode('cp1252', 'replace')
         out += content_bytes
         out += b"\nendstream\nendobj\n"
+        for num in sorted(img_bodies):
+            offsets[num] = len(out)
+            out += ("%d 0 obj\n" % num).encode('cp1252', 'replace') + img_bodies[num] + b"\nendobj\n"
+
+        total_objs = 6 + len(img_bodies)
         xref_pos = len(out)
-        out += b"xref\n0 7\n"
+        out += ("xref\n0 %d\n" % (total_objs + 1)).encode('cp1252')
         out += b"0000000000 65535 f \n"
-        for num in (1, 2, 3, 4, 5, 6):
+        for num in range(1, total_objs + 1):
             out += ("%010d 00000 n \n" % offsets[num]).encode('cp1252')
-        out += ("trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF" % xref_pos).encode('cp1252')
+        out += ("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF"
+                % (total_objs + 1, xref_pos)).encode('cp1252')
         return bytes(out)
 
 
@@ -171,14 +231,25 @@ def generar_factura_pdf(factura):
     pdf = _PDF()
     x = 40
     y = 40
+    logo_max_w = 120
+    logo_max_h = 100
+    header_x = x
+    if config.logo and os.path.exists(config.logo.path):
+        try:
+            pdf.image(config.logo.path, x=x, y_top=40,
+                      max_width=logo_max_w, max_height=logo_max_h)
+            header_x = x + logo_max_w + 15
+        except Exception:
+            pass
 
-    pdf.text(x, y, config.nombre_empresa or 'Empresa', size=20, bold=True); y += 22
-    pdf.text(x, y, 'Sistema de Facturacion', size=10); y += 16
-    pdf.text(x, y, 'FACTURA #%s' % factura.numero, size=14, bold=True); y += 18
+    pdf.text(header_x, y, config.nombre_empresa or 'Empresa', size=18, bold=True); y += 22
+    pdf.text(header_x, y, 'Sistema de Facturación', size=10); y += 16
+    pdf.text(header_x, y, 'FACTURA #%s' % factura.numero, size=14, bold=True); y += 18
     if config.nit:
-        pdf.text(x, y, 'NIT: %s' % config.nit, size=10); y += 14
+        pdf.text(header_x, y, 'NIT: %s' % config.nit, size=10); y += 14
     if config.direccion:
-        pdf.text(x, y, config.direccion, size=10); y += 14
+        pdf.text(header_x, y, config.direccion, size=10); y += 14
+    y = max(y, 40 + logo_max_h + 12)
     y += 10
     pdf.text(x, y, 'Fecha: %s' % factura.created_at.strftime('%d/%m/%Y'), size=10)
     pdf.text(x + 200, y, 'Hora: %s' % factura.created_at.strftime('%H:%M:%S'), size=10)
@@ -268,3 +339,55 @@ def generar_reporte_ventas_pdf(facturas, fecha_generacion):
     response = HttpResponse(data, content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename=reporte_ventas.pdf'
     return response
+
+
+def comisiones_por_vendedor(desde=None, hasta=None, mesero=None):
+    """
+    Retorna las comisiones por vendedor en el rango dado, con su desglose.
+
+    Cada elemento es un dict:
+        {
+            'id', 'nombre', 'apellidos',
+            'items'  -> cantidad total de productos,
+            'total'  -> suma de comisiones del vendedor,
+            'lineas' -> lista de {producto, cantidad, comision} por venta,
+        }
+
+    La comisión se calcula como cantidad * comision_del_producto.
+    """
+    from django.db.models import Sum, F
+    from apps.mesas.models import DetallePedido
+
+    qs = DetallePedido.objects.filter(es_cortesia=False).select_related(
+        'producto', 'pedido__mesero'
+    )
+    if desde:
+        qs = qs.filter(created_at__gte=desde)
+    if hasta:
+        qs = qs.filter(created_at__lte=hasta)
+    if mesero:
+        qs = qs.filter(pedido__mesero=mesero)
+
+    vendedores = {}
+    orden = []
+    for d in qs:
+        v = d.pedido.mesero
+        if v.id not in vendedores:
+            vendedores[v.id] = {
+                'id': v.id,
+                'nombre': v.nombre,
+                'apellidos': v.apellidos,
+                'items': 0,
+                'total': 0,
+                'lineas': [],
+            }
+            orden.append(v.id)
+        comision = d.cantidad * d.producto.comision
+        vendedores[v.id]['items'] += d.cantidad
+        vendedores[v.id]['total'] += comision
+        vendedores[v.id]['lineas'].append({
+            'producto': d.producto.nombre,
+            'cantidad': d.cantidad,
+            'comision': comision,
+        })
+    return [vendedores[k] for k in orden]

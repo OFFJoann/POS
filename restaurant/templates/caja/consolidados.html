@@ -19,23 +19,30 @@
                     <thead>
                         <tr>
                             <th>Fecha</th>
+                            {% if puede_ver_totales %}
                             <th>Ventas efectivo</th>
                             <th>Ventas transferencia</th>
                             <th>Total ventas</th>
                             <th>Egresos</th>
+                            <th>Comisiones</th>
                             <th>Dinero esperado</th>
                             <th>Efectivo contado</th>
                             <th>Diferencia</th>
+                            {% else %}
+                            <th colspan="8" class="text-center">Detalles de caja ocultos (sin permiso)</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for c in cierres %}
                         <tr class="table-light" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#detalle-{{ forloop.counter }}">
                             <td>{{ c.fecha_cierre|date:'d/m/Y' }}</td>
+                            {% if puede_ver_totales %}
                             <td class="text-success">${{ c.total_ventas_efectivo|mil }}</td>
                             <td class="text-info">${{ c.total_ventas_transferencia|mil }}</td>
                             <td class="fw-bold">${{ c.total_ventas|mil }}</td>
                             <td class="text-danger">-${{ c.total_egresos|mil }}</td>
+                            <td class="text-success">${{ c.total_comisiones|mil }}</td>
                             <td class="fw-bold text-primary">${{ c.dinero_esperado|mil }}</td>
                             <td class="fw-bold">${{ c.efectivo_conteo|mil }}</td>
                             <td class="{% if c.diferencia > 0 %}text-success{% elif c.diferencia < 0 %}text-danger{% else %}text-muted{% endif %}">
@@ -47,9 +54,13 @@
                                 $0
                                 {% endif %}
                             </td>
+                            {% else %}
+                            <td colspan="8" class="text-center text-muted">•••</td>
+                            {% endif %}
                         </tr>
                         <tr class="collapse" id="detalle-{{ forloop.counter }}">
-                            <td colspan="8" class="p-0">
+                            <td colspan="9" class="p-0">
+                                {% if puede_ver_totales %}
                                 <div class="bg-light p-3">
                                     <h6 class="mb-2"><i class="bi bi-receipt"></i> Facturas del día</h6>
                                     {% for f in c.facturas_del_dia %}
@@ -63,12 +74,33 @@
                                     {% empty %}
                                     <p class="text-muted mb-0">Sin facturas registradas.</p>
                                     {% endfor %}
+                                    {% if c.comisiones_detalle %}
+                                    <h6 class="mb-2 mt-3"><i class="bi bi-cash-coin"></i> Comisiones por vendedor</h6>
+                                    {% for d in c.comisiones_detalle %}
+                                    <div class="py-1 border-bottom">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>{{ d.nombre }} {{ d.apellidos }}</span>
+                                            <span class="fw-bold text-success">${{ d.total|mil }}</span>
+                                        </div>
+                                        <ul class="small text-muted mb-0">
+                                            {% for l in d.lineas %}
+                                            <li>{{ l.producto }} x{{ l.cantidad }} — ${{ l.comision|mil }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
                                 </div>
+                                {% else %}
+                                <div class="bg-light p-3 text-muted">
+                                    Información de caja no disponible para tu perfil.
+                                </div>
+                                {% endif %}
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                                 No hay cierres registrados aún.
                             </td>
                         </tr>

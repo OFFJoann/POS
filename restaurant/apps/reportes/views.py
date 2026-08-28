@@ -15,7 +15,7 @@ from .services import (
     exportar_ventas_excel as exportar_excel_ventas,
     exportar_productos_excel as exportar_excel_productos,
 )
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 from apps.ventas.models import Factura, Pago
 from apps.productos.models import Producto
 from apps.usuarios.models import Vendedor
@@ -23,7 +23,7 @@ from apps.mesas.models import DetallePedido
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def dashboard_reportes(request):
     """Dashboard principal de reportes."""
     datos = obtener_datos_dashboard()
@@ -31,7 +31,7 @@ def dashboard_reportes(request):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def reporte_ventas(request):
     """Reporte detallado de ventas con filtros."""
     facturas = Factura.objects.select_related('mesa', 'mesero').all()
@@ -62,15 +62,25 @@ def reporte_ventas(request):
 
     vendedores = Vendedor.objects.filter(activo=True)
 
+    from apps.ventas.services import comisiones_por_vendedor
+    comisiones = comisiones_por_vendedor(
+        desde=fecha_desde,
+        hasta=fecha_hasta,
+        mesero=int(mesero_id) if mesero_id else None,
+    )
+    total_comisiones = sum((c['total'] or 0) for c in comisiones)
+
     return render(request, 'reportes/reporte_ventas.html', {
         'facturas': facturas,
         'totales': totales,
         'vendedores': vendedores,
+        'comisiones': comisiones,
+        'total_comisiones': total_comisiones,
     })
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def exportar_ventas_excel(request):
     """Exporta ventas filtradas a Excel."""
     facturas = Factura.objects.select_related('mesa', 'mesero').all()
@@ -86,7 +96,7 @@ def exportar_ventas_excel(request):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def exportar_ventas_pdf(request):
     """Exporta ventas filtradas a PDF."""
     facturas = Factura.objects.select_related('mesa', 'mesero').all()
@@ -117,7 +127,7 @@ def _agregar_ganancia(queryset):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def reporte_productos(request):
     """Reporte de productos: más/menos vendidos, ganancia, cortesías."""
     base = DetallePedido.objects.exclude(es_cortesia=True).values(
@@ -160,7 +170,7 @@ def reporte_productos(request):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def exportar_productos_excel(request):
     """Exporta productos a Excel."""
     productos = Producto.objects.select_related('categoria').all()
@@ -168,7 +178,7 @@ def exportar_productos_excel(request):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def reporte_por_mesero(request, vendedor_id):
     """Reporte de ventas por mesero."""
     vendedor = get_object_or_404(Vendedor, pk=vendedor_id)
@@ -194,7 +204,7 @@ def reporte_por_mesero(request, vendedor_id):
 
 
 @login_required
-@admin_required
+@permiso_required('reportes')
 def datos_dashboard_api(request):
     """API que retorna datos del dashboard en JSON."""
     datos = obtener_datos_dashboard()

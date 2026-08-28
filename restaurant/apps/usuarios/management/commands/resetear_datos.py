@@ -35,6 +35,10 @@ class Command(BaseCommand):
             raise CommandError('No se encontró el usuario admin (cédula 1234567890).')
 
         admin_user = admin_vendedor.usuario
+        # El administrador siempre debe tener todos los permisos
+        if not (admin_user.is_staff or admin_user.is_superuser):
+            admin_user.is_staff = True
+            admin_user.save()
 
         if not options['force']:
             confirm = input(

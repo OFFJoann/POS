@@ -1,0 +1,54 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Carta Digital{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 960px;">
+    <!-- Encabezado con logo de la empresa -->
+    <div class="text-center mb-5">
+        {% if configuracion.logo %}
+            <img src="{{ configuracion.logo.url }}" alt="{{ configuracion.nombre_empresa }}"
+                 style="max-height: 140px; max-width: 100%; object-fit: contain;">
+        {% else %}
+            <h1 class="display-5 fw-bold">{{ configuracion.nombre_empresa }}</h1>
+        {% endif %}
+        <p class="text-muted mt-2">Nuestra carta</p>
+    </div>
+
+    {% for categoria in categorias %}
+    <section class="mb-5">
+        <h2 class="h4 border-bottom pb-2 mb-3">{{ categoria.nombre }}</h2>
+        <div class="row g-3">
+            {% for producto in categoria.productos_carta %}
+            <div class="col-6 col-md-4">
+                <div class="card border-0 shadow-sm h-100 text-center">
+                    {% if producto.imagen %}
+                    <div class="p-2" style="height: 150px; display:flex; align-items:center; justify-content:center;">
+                        <img src="{{ producto.imagen.url }}" alt="{{ producto.nombre }}"
+                             class="img-fluid h-100" style="object-fit: contain;">
+                    </div>
+                    {% else %}
+                    <div class="p-2 d-flex align-items-center justify-content-center text-muted" style="height: 150px;">
+                        <i class="bi bi-image" style="font-size: 2.5rem;"></i>
+                    </div>
+                    {% endif %}
+                    <div class="card-body pt-0">
+                        <h6 class="card-title mb-0">{{ producto.nombre }}</h6>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% empty %}
+    <div class="alert alert-info text-center">Aún no hay productos disponibles en la carta.</div>
+    {% endfor %}
+
+    <footer class="text-center text-muted small mt-4">
+        {{ configuracion.nombre_empresa }}
+        {% if configuracion.telefono %} &middot; {{ configuracion.telefono }}{% endif %}
+        {% if configuracion.direccion %} &middot; {{ configuracion.direccion }}{% endif %}
+    </footer>
+</div>
+{% endblock %}

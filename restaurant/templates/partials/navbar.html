@@ -1,3 +1,4 @@
+{% load permisos_tags %}
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}">
@@ -23,22 +24,28 @@
                         <i class="bi bi-tags"></i> Precios
                     </a>
                 </li>
-                {% if user.is_staff %}
+                {% if user|puede:"productos" or user|puede:"inventario" %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-box-seam"></i> Productos
                     </a>
                     <ul class="dropdown-menu">
+                        {% if user|puede:"productos" %}
                         <li><a class="dropdown-item" href="{% url 'lista_productos' %}"><i class="bi bi-list"></i> Lista de productos</a></li>
                         <li><a class="dropdown-item" href="{% url 'crear_producto' %}"><i class="bi bi-plus-circle"></i> Nuevo producto</a></li>
                         <li><a class="dropdown-item" href="{% url 'lista_categorias' %}"><i class="bi bi-folder"></i> Categorías</a></li>
                         <li><a class="dropdown-item" href="{% url 'lista_unidades' %}"><i class="bi bi-rulers"></i> Unidades de medida</a></li>
                         <li><hr class="dropdown-divider"></li>
+                        {% endif %}
+                        {% if user|puede:"inventario" %}
                         <li><a class="dropdown-item" href="{% url 'lista_inventario' %}"><i class="bi bi-clipboard-data"></i> Inventario</a></li>
                         <li><a class="dropdown-item" href="{% url 'historial_inventario' %}"><i class="bi bi-clock-history"></i> Historial</a></li>
                         <li><a class="dropdown-item" href="{% url 'registrar_consumo_interno' %}"><i class="bi bi-cup-straw"></i> Consumo interno</a></li>
+                        {% endif %}
                     </ul>
                 </li>
+                {% endif %}
+                {% if user|puede:"caja" %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'estado_caja' %}">
                         <i class="bi bi-cash-stack"></i> Caja
@@ -49,16 +56,22 @@
                         <i class="bi bi-clock-history"></i> Consolidados
                     </a>
                 </li>
+                {% endif %}
+                {% if user|puede:"ver_facturas" %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'lista_facturas' %}">
                         <i class="bi bi-receipt"></i> Facturas
                     </a>
                 </li>
+                {% endif %}
+                {% if user.is_staff %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'lista_vendedores' %}">
                         <i class="bi bi-people"></i> Vendedores
                     </a>
                 </li>
+                {% endif %}
+                {% if user|puede:"reportes" %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'dashboard_reportes' %}">
                         <i class="bi bi-graph-up"></i> Reportes
@@ -67,7 +80,7 @@
                 {% endif %}
             </ul>
             <ul class="navbar-nav">
-                {% if not caja_abierta and user.is_staff %}
+                {% if not caja_abierta and user|puede:"caja" %}
                 <li class="nav-item">
                     <a class="nav-link text-warning" href="{% url 'abrir_caja' %}">
                         <i class="bi bi-cash"></i> Abrir Caja
@@ -85,7 +98,7 @@
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><span class="dropdown-item-text text-muted"><small>{{ user.vendedor.cedula }}</small></span></li>
                         <li><hr class="dropdown-divider"></li>
-                        {% if user.is_staff %}
+                        {% if user|puede:"configuracion" %}
                         <li><a class="dropdown-item" href="{% url 'editar_configuracion' %}"><i class="bi bi-gear"></i> Configuración</a></li>
                         {% endif %}
                         <li><a class="dropdown-item text-danger" href="{% url 'salir' %}"><i class="bi bi-box-arrow-right"></i> Salir</a></li>

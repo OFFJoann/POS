@@ -5,15 +5,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Prefetch
 from .models import Producto, Categoria, UnidadMedida
 from .forms import ProductoForm, CategoriaForm, UnidadMedidaForm
 from .services import buscar_productos_por_termino
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def lista_productos(request):
     """Lista todos los productos."""
     productos = Producto.objects.select_related('categoria', 'unidad').all()
@@ -23,7 +23,7 @@ def lista_productos(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def crear_producto(request):
     """Crea un nuevo producto."""
     if request.method == 'POST':
@@ -40,7 +40,7 @@ def crear_producto(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def editar_producto(request, pk):
     """Edita un producto existente."""
     producto = get_object_or_404(Producto, pk=pk)
@@ -58,7 +58,7 @@ def editar_producto(request, pk):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def eliminar_producto(request, pk):
     """Elimina un producto. Si hay registros que lo protegen, muestra dónde."""
     producto = get_object_or_404(Producto, pk=pk)
@@ -105,6 +105,32 @@ def lista_precios(request):
     })
 
 
+def carta_digital(request):
+    """
+    Carta digital pública, sin autenticación.
+
+    Cualquier persona con el enlace puede verla. Muestra el logo
+    configurado en la empresa y los productos activos agrupados por
+    categoría. No se muestran precios ni cantidades.
+    """
+    categorias = (
+        Categoria.objects
+        .filter(activo=True)
+        .order_by('nombre')
+        .prefetch_related(
+            Prefetch(
+                'productos',
+                queryset=Producto.objects.filter(estado='activo').order_by('nombre'),
+                to_attr='productos_carta',
+            )
+        )
+    )
+    categorias = [c for c in categorias if c.productos_carta]
+    return render(request, 'productos/carta_digital.html', {
+        'categorias': categorias,
+    })
+
+
 @login_required
 def buscar_productos(request):
     """
@@ -131,7 +157,7 @@ def buscar_productos(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def lista_categorias(request):
     """Lista todas las categorías."""
     categorias = Categoria.objects.all()
@@ -141,7 +167,7 @@ def lista_categorias(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def crear_categoria(request):
     """Crea una nueva categoría."""
     if request.method == 'POST':
@@ -158,7 +184,7 @@ def crear_categoria(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def lista_unidades(request):
     """Lista todas las unidades de medida."""
     unidades = UnidadMedida.objects.all()
@@ -168,7 +194,7 @@ def lista_unidades(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def crear_unidad(request):
     """Crea una nueva unidad de medida."""
     if request.method == 'POST':
@@ -185,7 +211,7 @@ def crear_unidad(request):
 
 
 @login_required
-@admin_required
+@permiso_required('productos')
 def editar_unidad(request, pk):
     """Edita una unidad de medida existente."""
     unidad = get_object_or_404(UnidadMedida, pk=pk)

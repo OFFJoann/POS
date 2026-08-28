@@ -138,6 +138,12 @@ class CierreCaja(models.Model):
     dinero_esperado = models.DecimalField(
         'Dinero esperado', max_digits=12, decimal_places=2, default=0
     )
+    total_comisiones = models.DecimalField(
+        'Total comisiones', max_digits=12, decimal_places=2, default=0
+    )
+    comisiones_detalle = models.JSONField(
+        'Detalle de comisiones por vendedor', default=list, blank=True
+    )
     efectivo_conteo = models.DecimalField(
         'Efectivo contado', max_digits=12, decimal_places=2, default=0,
         help_text='Efectivo físico contado al cerrar la caja'

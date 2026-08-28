@@ -1,5 +1,5 @@
 {% extends 'base/base.html' %}
-{% load static custom_filters %}
+{% load static custom_filters permisos_tags %}
 
 {% block title %}Mesa {{ pedido.mesa.numero }}{% endblock %}
 
@@ -25,7 +25,7 @@
                     </small>
                 </div>
                 <div class="d-flex gap-2">
-                    {% if not detalles %}
+                    {% if not detalles and user|puede:"cancelar_pedido" %}
                     <a href="{% url 'cancelar_pedido' pedido.id %}"
                        class="btn btn-outline-danger btn-sm"
                        onclick="return confirm('¿Cancelar pedido? La mesa quedará libre.')">
@@ -125,6 +125,7 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
+                                        {% if user|puede:"cambiar_precio" %}
                                         <form method="post" action="{% url 'quitar_producto' pedido.id detalle.id %}"
                                               class="d-inline form-actualizar-precio">
                                             {% csrf_token %}
@@ -133,6 +134,9 @@
                                                    class="form-control form-control-sm text-center precio-input" min="0" step="1"
                                                    style="width:80px">
                                         </form>
+                                        {% else %}
+                                        ${{ detalle.precio_unitario|mil }}
+                                        {% endif %}
                                     </td>
                                     <td class="text-center">
                                         <form method="post" action="{% url 'quitar_producto' pedido.id detalle.id %}"
@@ -223,7 +227,7 @@
                             </button>
                             {% endif %}
                             {% if pedido.estado == 'activo' or pedido.estado == 'parcial' %}
-                            {% if user.is_staff %}
+                            {% if user|puede:"trasladar_mesas" %}
                             <a href="{% url 'trasladar_pedido' pedido.id %}" class="btn btn-outline-info">
                                 <i class="bi bi-arrow-repeat"></i> Trasladar
                             </a>
@@ -262,11 +266,10 @@
                     <div class="mb-3">
                         <label class="form-label">Método de pago</label>
                         <select name="metodo_pago" class="form-select form-select-lg" required>
-                            {% if monto == 0 %}
-                            <option value="cortesia">Cortesía</option>
-                            {% else %}
                             <option value="efectivo">Efectivo</option>
                             <option value="transferencia">Transferencia</option>
+                            {% if user|puede:"cortesia" %}
+                            <option value="cortesia">Cortesía</option>
                             {% endif %}
                         </select>
                     </div>
@@ -318,7 +321,9 @@
                         <select name="metodo_pago" class="form-select" required>
                             <option value="efectivo">Efectivo</option>
                             <option value="transferencia">Transferencia</option>
+                            {% if user|puede:"cortesia" %}
                             <option value="cortesia">Cortesía</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="qr-consignacion text-center mb-3 d-none">
@@ -439,8 +444,13 @@ $(document).ready(function() {
         Swal.fire({
             title: nombre,
             html: '<div class="mb-3"><label class="form-label">Cantidad</label><input id="swal-cantidad" class="form-control form-control-lg" type="number" value="1" min="1" step="1"></div>' +
+{% if user|puede:"cambiar_precio" %}
                   '<div class="mb-3"><label class="form-label">Precio unitario</label><input id="swal-precio" class="form-control form-control-lg" type="number" value="' + precio + '" min="0" step="1"></div>' +
-                  '<div class="form-check"><input id="swal-cortesia" class="form-check-input" type="checkbox"><label class="form-check-label" for="swal-cortesia">🎁 Cortesía (gratis)</label></div>',
+{% endif %}
+{% if user|puede:"cortesia" %}
+                  '<div class="form-check"><input id="swal-cortesia" class="form-check-input" type="checkbox"><label class="form-check-label" for="swal-cortesia">🎁 Cortesía (gratis)</label></div>' +
+{% endif %}
+                  '',
             didOpen: function() {
                 document.getElementById('swal-cantidad').focus();
             },
@@ -449,31 +459,29 @@ $(document).ready(function() {
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#0d6efd',
             preConfirm: function() {
-                var cortesia = document.getElementById('swal-cortesia').checked;
+                var cortesiaEl = document.getElementById('swal-cortesia');
+                var cortesia = cortesiaEl ? cortesiaEl.checked : false;
+                var precioEl = document.getElementById('swal-precio');
+                var precioVal = precioEl ? (parseInt(precioEl.value) || 0) : null;
                 return {
                     cantidad: parseInt(document.getElementById('swal-cantidad').value) || 1,
-                    precio: cortesia ? 0 : parseInt(document.getElementById('swal-precio').value) || 0,
+                    precio: precioVal,
                     cortesia: cortesia,
                 };
             }
-        }).then(function(result) {
-            if (result.isConfirmed) {
-                $('#input-cantidad').val(result.value.cantidad);
-                if (result.value.cortesia) {
-                    $('#form-agregar-producto').append('<input type="hidden" name="cortesia" value="true">');
-                    $('#form-agregar-producto').find('[name="precio_unitario"]').remove();
-                } else {
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    $('#input-cantidad').val(result.value.cantidad);
                     $('#form-agregar-producto').find('[name="cortesia"]').remove();
-                    var precioInput = $('#form-agregar-producto').find('[name="precio_unitario"]');
-                    if (precioInput.length) {
-                        precioInput.val(result.value.precio);
-                    } else {
+                    $('#form-agregar-producto').find('[name="precio_unitario"]').remove();
+                    if (result.value.cortesia) {
+                        $('#form-agregar-producto').append('<input type="hidden" name="cortesia" value="true">');
+                    } else if (result.value.precio !== null) {
                         $('#form-agregar-producto').append('<input type="hidden" name="precio_unitario" value="' + result.value.precio + '">');
                     }
+                    $('#form-agregar-producto').submit();
                 }
-                $('#form-agregar-producto').submit();
-            }
-        });
+            });
     });
 
     // Búsqueda de productos

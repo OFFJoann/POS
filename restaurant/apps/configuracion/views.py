@@ -9,11 +9,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .models import Configuracion
 from .forms import ConfiguracionForm
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 
 
 @login_required
-@admin_required
+@permiso_required('configuracion')
 def editar_configuracion(request):
     """
     Edita la configuración general de la empresa.

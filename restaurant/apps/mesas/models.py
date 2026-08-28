@@ -135,6 +135,9 @@ class DetallePedido(models.Model):
     subtotal = models.DecimalField(
         'Subtotal', max_digits=12, decimal_places=2
     )
+    comision = models.DecimalField(
+        'Comisión', max_digits=12, decimal_places=2, default=0
+    )
     es_cortesia = models.BooleanField('Cortesía', default=False)
     observaciones = models.CharField(
         'Observaciones', max_length=255, blank=True
@@ -152,6 +155,10 @@ class DetallePedido(models.Model):
         return f'{self.producto.nombre} x {self.cantidad}'
 
     def save(self, *args, **kwargs):
-        """Calcula subtotal automáticamente antes de guardar."""
+        """Calcula subtotal y comisión automáticamente antes de guardar."""
         self.subtotal = self.cantidad * self.precio_unitario
+        if self.es_cortesia:
+            self.comision = 0
+        else:
+            self.comision = self.cantidad * self.producto.comision
         super().save(*args, **kwargs)

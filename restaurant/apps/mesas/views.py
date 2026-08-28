@@ -19,8 +19,45 @@ from .services import (
 )
 from .forms import AgregarProductoForm, DescuentoForm, MesaForm
 from apps.productos.models import Producto, Categoria
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 from apps.usuarios.models import Vendedor
+
+
+def _autorizado_pedido(user, pedido, codigo, request):
+    """Verifica que el usuario pueda ejecutar `codigo` sobre `pedido`.
+
+    Administradores: siempre. Otros: debe ser dueño del pedido (o tener el
+    permiso 'modificar_otros_pedidos') y tener el permiso `codigo`.
+    """
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True
+    vendedor = getattr(user, 'vendedor', None)
+    if not vendedor or not vendedor.activo:
+        messages.error(request, 'No tienes permiso para realizar esta acción.')
+        return False
+    if pedido.mesero_id != vendedor.id and not vendedor.puede('modificar_otros_pedidos'):
+        messages.error(request, 'No puedes modificar pedidos de otros vendedores.')
+        return False
+    if not vendedor.puede(codigo):
+        messages.error(request, 'No tienes permiso para realizar esta acción.')
+        return False
+    return True
+
+
+def _puede_cortesia_o_precio(user, request, permitir_cortesia, permitir_precio):
+    """Aplica las restricciones de cortesía/precio a nivel de servidor.
+
+    Devuelve (cortesia_permitida, precio_permitido) según el vendedor.
+    """
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True, True
+    vendedor = getattr(user, 'vendedor', None)
+    if not vendedor:
+        return False, False
+    return (
+        bool(permitir_cortesia and vendedor.puede('cortesia')),
+        bool(permitir_precio and vendedor.puede('cambiar_precio')),
+    )
 from apps.ventas.models import Factura, Pago
 from apps.caja.models import AperturaCaja
 from apps.inventario.services import descontar_inventario
@@ -111,6 +148,7 @@ def estado_mesas_api(request):
 
 
 @login_required
+@permiso_required('facturar')
 def abrir_pedido(request, mesa_id):
     """
     Abre un nuevo pedido en la mesa o redirige al existente.
@@ -161,9 +199,12 @@ def detalle_pedido(request, pedido_id):
     )
 
     # Verificar permisos
-    if pedido.mesero != request.user.vendedor and not request.user.is_staff:
-        messages.error(request, 'No puedes modificar pedidos de otros vendedores.')
-        return redirect('vista_mesas')
+    if not (request.user.is_staff or request.user.is_superuser):
+        v = getattr(request.user, 'vendedor', None)
+        if not v or (pedido.mesero_id != v.id
+                     and not v.puede('modificar_otros_pedidos')):
+            messages.error(request, 'No puedes modificar pedidos de otros vendedores.')
+            return redirect('vista_mesas')
 
     categorias = Categoria.objects.filter(activo=True)
     productos_por_categoria = {}
@@ -198,8 +239,10 @@ def agregar_producto(request, pedido_id):
         messages.error(request, 'No se pueden agregar productos a un pedido pagado o cerrado.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
-    if pedido.mesero != request.user.vendedor and not request.user.is_staff:
-        return JsonResponse({'error': 'Permiso denegado'}, status=403)
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Permiso denegado'}, status=403)
+        return redirect('vista_mesas')
 
     if request.method == 'POST':
         producto_id = request.POST.get('producto_id')
@@ -207,6 +250,14 @@ def agregar_producto(request, pedido_id):
         cortesia = request.POST.get('cortesia') == 'true'
         precio_str = request.POST.get('precio_unitario', '').strip()
         precio_personalizado = Decimal(precio_str) if precio_str else None
+
+        # Restricciones de cortesía y cambio de precio a nivel de servidor
+        cortesia_ok, precio_ok = _puede_cortesia_o_precio(
+            request.user, request, cortesia, precio_personalizado is not None)
+        if not cortesia_ok:
+            cortesia = False
+        if not precio_ok:
+            precio_personalizado = None
 
         try:
             detalle = agregar_producto_a_pedido(
@@ -240,12 +291,16 @@ def quitar_producto(request, pedido_id, detalle_id):
         if detalle.pedido.estado not in ('activo', 'parcial'):
             messages.error(request, 'No se puede modificar un pedido pagado o cerrado.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
-        if detalle.pedido.mesero != request.user.vendedor and not request.user.is_staff:
+        if not _autorizado_pedido(request.user, detalle.pedido, 'facturar', request):
             messages.error(request, 'Permiso denegado.')
             return redirect('vista_mesas')
 
         precio_unitario = request.POST.get('precio_unitario')
         if precio_unitario:
+            _, precio_ok = _puede_cortesia_o_precio(request.user, request, False, True)
+            if not precio_ok:
+                messages.error(request, 'No tienes permiso para cambiar precios.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
             detalle.precio_unitario = Decimal(precio_unitario)
             detalle.subtotal = detalle.cantidad * detalle.precio_unitario
             detalle.save()
@@ -270,8 +325,10 @@ def aplicar_descuento(request, pedido_id):
     Aplica un descuento al pedido.
     Solo administradores pueden aplicar descuentos.
     """
-    if not request.user.is_staff:
-        messages.error(request, 'Solo administradores pueden aplicar descuentos.')
+    v = getattr(request.user, 'vendedor', None)
+    if not (request.user.is_staff or request.user.is_superuser
+            or (v and v.puede('descuento'))):
+        messages.error(request, 'No tienes permiso para aplicar descuentos.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
     pedido = get_object_or_404(Pedido, pk=pedido_id)
@@ -319,6 +376,9 @@ def cobrar_pedido(request, pedido_id):
         pk=pedido_id
     )
 
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        return redirect('vista_mesas')
+
     if request.method == 'POST':
         metodo_pago = request.POST.get('metodo_pago')
         monto_a_cobrar = pedido.saldo_pendiente if pedido.estado == 'parcial' else pedido.total
@@ -327,6 +387,12 @@ def cobrar_pedido(request, pedido_id):
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
             messages.error(request, 'Método de pago inválido.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
+
+        if metodo_pago == 'cortesia':
+            cortesia_ok, _ = _puede_cortesia_o_precio(request.user, request, True, False)
+            if not cortesia_ok:
+                messages.error(request, 'No tienes permiso para cobrar como cortesía.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
 
         if valor_recibido < monto_a_cobrar:
             messages.error(request, 'El valor recibido es menor al monto a cobrar.')
@@ -392,12 +458,14 @@ def cobrar_pedido(request, pedido_id):
         pedido.fecha_cierre = timezone.now()
         pedido.save()
 
-        pedido.mesa.estado = 'pagada'
+        # La mesa queda libre automáticamente al facturar el pedido completo
+        pedido.mesa.estado = 'libre'
         pedido.mesa.save()
 
         messages.success(
             request,
-            f'Factura #{factura.numero} generada. Cambio: ${cambio}'
+            f'Factura #{factura.numero} generada. Cambio: ${cambio}. '
+            f'Mesa {pedido.mesa.numero} libre.'
         )
         return redirect('ver_factura', factura_id=factura.id)
 
@@ -420,6 +488,9 @@ def pago_parcial(request, pedido_id):
 
     pedido = get_object_or_404(Pedido, pk=pedido_id)
 
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        return redirect('vista_mesas')
+
     if request.method == 'POST':
         metodo_pago = request.POST.get('metodo_pago')
         monto_pago = Decimal(request.POST.get('monto_pago', 0))
@@ -427,6 +498,12 @@ def pago_parcial(request, pedido_id):
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
             messages.error(request, 'Método de pago inválido.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
+
+        if metodo_pago == 'cortesia':
+            cortesia_ok, _ = _puede_cortesia_o_precio(request.user, request, True, False)
+            if not cortesia_ok:
+                messages.error(request, 'No tienes permiso para cobrar como cortesía.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
 
         if monto_pago <= 0 or monto_pago >= pedido.total:
             messages.error(request, 'Monto de pago parcial inválido.')
@@ -501,9 +578,14 @@ def cancelar_pedido(request, pedido_id):
         messages.error(request, 'No se puede cancelar un pedido con productos.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
-    if pedido.mesero != request.user.vendedor and not request.user.is_staff:
-        messages.error(request, 'Permiso denegado.')
-        return redirect('vista_mesas')
+    v = getattr(request.user, 'vendedor', None)
+    if not (request.user.is_staff or request.user.is_superuser):
+        if not (v and v.puede('cancelar_pedido')):
+            messages.error(request, 'No tienes permiso para cancelar pedidos.')
+            return redirect('vista_mesas')
+        if pedido.mesero_id != v.id and not (v and v.puede('modificar_otros_pedidos')):
+            messages.error(request, 'No puedes cancelar pedidos de otros vendedores.')
+            return redirect('vista_mesas')
 
     mesa = pedido.mesa
     pedido.delete()
@@ -553,7 +635,7 @@ def cambiar_mesero(request, pedido_id):
 
 
 @login_required
-@admin_required
+@permiso_required('trasladar_mesas')
 def trasladar_pedido(request, pedido_id):
     """
     Traslada un pedido activo de una mesa a otra.

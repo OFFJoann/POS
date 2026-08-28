@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container py-3">
     <div class="row justify-content-center">
-        <div class="col-md-6">
+        <div class="col-md-8 col-lg-7">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">
                     <h5 class="mb-0"><i class="bi bi-person"></i> {{ accion }} vendedor</h5>
@@ -13,16 +13,46 @@
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}
-                            <div class="text-danger small">{{ field.errors|join:', ' }}</div>
+
+                        <h6 class="text-muted mb-3">Datos del vendedor</h6>
+                        {% for field in form.visible_fields %}
+                            {% if field.name in form.CAMPOS_BASICOS %}
+                            <div class="mb-3">
+                                <label class="form-label">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="text-danger small">{{ field.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
                             {% endif %}
-                        </div>
                         {% endfor %}
-                        <div class="d-flex gap-2">
+
+                        <hr>
+                        <h6 class="text-muted mb-3">
+                            <i class="bi bi-shield-lock"></i> Permisos
+                        </h6>
+                        <p class="text-muted small mb-3">
+                            El administrador siempre tiene todos los permisos. Marca lo que
+                            este vendedor podrá hacer en el sistema.
+                        </p>
+
+                        <div class="row g-2">
+                            {% for campo, ayuda in permisos %}
+                            <div class="col-md-6">
+                                <div class="form-check mb-2 p-2 border rounded">
+                                    {{ campo }}
+                                    <label class="form-check-label" for="{{ campo.id_for_label }}">
+                                        <strong>{{ campo.label }}</strong>
+                                    </label>
+                                    {% if ayuda %}
+                                    <div><small class="text-muted">{{ ayuda }}</small></div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-flex gap-2 mt-3">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg"></i> {{ accion }}
                             </button>

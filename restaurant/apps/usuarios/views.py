@@ -124,8 +124,9 @@ def crear_vendedor(request):
             return redirect('lista_vendedores')
     else:
         form = VendedorForm()
+    permisos = [(form[datos[0]], datos[2]) for datos in Vendedor.permisos_para_form()]
     return render(request, 'usuarios/form_vendedor.html', {
-        'form': form, 'accion': 'Crear'
+        'form': form, 'accion': 'Crear', 'permisos': permisos
     })
 
 
@@ -142,8 +143,9 @@ def editar_vendedor(request, pk):
             return redirect('lista_vendedores')
     else:
         form = VendedorForm(instance=vendedor)
+    permisos = [(form[datos[0]], datos[2]) for datos in Vendedor.permisos_para_form()]
     return render(request, 'usuarios/form_vendedor.html', {
-        'form': form, 'accion': 'Editar', 'vendedor': vendedor
+        'form': form, 'accion': 'Editar', 'vendedor': vendedor, 'permisos': permisos
     })
 
 

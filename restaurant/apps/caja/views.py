@@ -10,12 +10,20 @@ from django.contrib import messages
 from django.utils import timezone
 from .models import AperturaCaja, CierreCaja, Egreso, CategoriaEgreso
 from .forms import AperturaCajaForm, EgresoForm
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 from apps.mesas.models import Mesa
 
 
+def _puede_ver_totales(user):
+    """Indica si el usuario puede ver los totales/dinero esperado de caja."""
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True
+    v = getattr(user, 'vendedor', None)
+    return bool(v and v.puede('ver_totales_caja'))
+
+
 @login_required
-@admin_required
+@permiso_required('caja')
 def estado_caja(request):
     """
     Muestra el estado actual de la caja.
@@ -24,18 +32,47 @@ def estado_caja(request):
     """
     caja_activa = AperturaCaja.objects.filter(activa=True).first()
     egresos = Egreso.objects.none()
+    comisiones = []
+    total_comisiones = 0
+    falta_por_cobrar = 0
 
     if caja_activa:
         egresos = caja_activa.egresos.select_related('usuario', 'categoria').all()
+        from apps.ventas.services import comisiones_por_vendedor
+        from apps.mesas.models import Pedido
+        from django.db.models import Sum, Case, When, F
+        comisiones = comisiones_por_vendedor(
+            caja_activa.fecha_apertura, caja_activa._fecha_fin
+        )
+        total_comisiones = sum((c['total'] or 0) for c in comisiones)
+        falta_por_cobrar = Pedido.objects.filter(
+            estado__in=['activo', 'parcial']
+        ).aggregate(
+            total=Sum(
+                Case(
+                    When(estado='parcial', then=F('saldo_pendiente')),
+                    default=F('total'),
+                )
+            )
+        )['total'] or 0
+
+    ya_cobrado = caja_activa.total_ventas if caja_activa else 0
+    total_proyectado = ya_cobrado + falta_por_cobrar
 
     return render(request, 'caja/estado_caja.html', {
         'caja': caja_activa,
         'egresos': egresos,
+        'comisiones': comisiones,
+        'total_comisiones': total_comisiones,
+        'ya_cobrado': ya_cobrado,
+        'falta_por_cobrar': falta_por_cobrar,
+        'total_proyectado': total_proyectado,
+        'puede_ver_totales': _puede_ver_totales(request.user),
     })
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def abrir_caja(request):
     """
     Abre una nueva caja.
@@ -63,7 +100,7 @@ def abrir_caja(request):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def cerrar_caja(request):
     """
     Cierra la caja activa y muestra el resumen.
@@ -85,6 +122,44 @@ def cerrar_caja(request):
         )
         return redirect('estado_caja')
 
+    from apps.ventas.services import comisiones_por_vendedor
+    from apps.mesas.models import Pedido
+    from django.db.models import Sum, Case, When, F
+    comisiones = comisiones_por_vendedor(caja.fecha_apertura, caja._fecha_fin)
+    total_comisiones = sum((c['total'] or 0) for c in comisiones)
+    falta_por_cobrar = Pedido.objects.filter(
+        estado__in=['activo', 'parcial']
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(estado='parcial', then=F('saldo_pendiente')),
+                default=F('total'),
+            )
+        )
+    )['total'] or 0
+    ya_cobrado = caja.total_ventas
+    total_proyectado = ya_cobrado + falta_por_cobrar
+    comisiones_detalle = [
+        {
+            'id': c['id'],
+            'nombre': c['nombre'],
+            'apellidos': c['apellidos'],
+            'total': float(c['total'] or 0),
+            'items': float(c['items'] or 0),
+            'lineas': [
+                {
+                    'producto': l['producto'],
+                    'cantidad': float(l['cantidad'] or 0),
+                    'comision': float(l['comision'] or 0),
+                }
+                for l in c['lineas']
+            ],
+        }
+        for c in comisiones
+    ]
+
+    puede_ver = _puede_ver_totales(request.user)
+
     if request.method == 'POST':
         efectivo_conteo = Decimal(request.POST.get('efectivo_conteo', 0))
 
@@ -102,24 +177,35 @@ def cerrar_caja(request):
             total_egresos=caja.total_egresos,
             total_egresos_efectivo=caja.total_egresos_efectivo,
             total_egresos_transferencia=caja.total_egresos_transferencia,
+            total_comisiones=total_comisiones,
+            comisiones_detalle=comisiones_detalle,
             dinero_esperado=caja.dinero_esperado,
             efectivo_conteo=efectivo_conteo,
             diferencia=efectivo_conteo - caja.dinero_esperado,
         )
 
-        messages.success(
-            request,
-            f'Caja cerrada. Dinero esperado: ${caja.dinero_esperado:0f}'
-        )
+        if puede_ver:
+            messages.success(
+                request,
+                f'Caja cerrada. Dinero esperado: ${caja.dinero_esperado:0f}'
+            )
+        else:
+            messages.success(request, 'Caja cerrada correctamente.')
         return redirect('consolidados')
 
     return render(request, 'caja/confirmar_cierre.html', {
         'caja': caja,
+        'comisiones': comisiones,
+        'total_comisiones': total_comisiones,
+        'ya_cobrado': ya_cobrado,
+        'falta_por_cobrar': falta_por_cobrar,
+        'total_proyectado': total_proyectado,
+        'puede_ver_totales': puede_ver,
     })
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def lista_consolidados(request):
     """
     Muestra el historial de cierres de caja consolidados.
@@ -127,11 +213,12 @@ def lista_consolidados(request):
     cierres = CierreCaja.objects.all().order_by('-fecha_cierre')
     return render(request, 'caja/consolidados.html', {
         'cierres': cierres,
+        'puede_ver_totales': _puede_ver_totales(request.user),
     })
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def lista_egresos(request):
     """
     Lista todos los egresos registrados.
@@ -143,7 +230,7 @@ def lista_egresos(request):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def registrar_egreso(request):
     """
     Registra un nuevo egreso en la caja activa.
@@ -171,7 +258,7 @@ def registrar_egreso(request):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def editar_egreso(request, pk):
     """Edita un egreso existente."""
     egreso = get_object_or_404(Egreso, pk=pk)
@@ -191,7 +278,7 @@ def editar_egreso(request, pk):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def eliminar_egreso(request, pk):
     """Elimina un egreso."""
     egreso = get_object_or_404(Egreso, pk=pk)
@@ -201,7 +288,7 @@ def eliminar_egreso(request, pk):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def gestionar_categorias_egreso(request):
     """Gestiona las categorías de egreso."""
     categorias = CategoriaEgreso.objects.all()
@@ -224,7 +311,7 @@ def gestionar_categorias_egreso(request):
 
 
 @login_required
-@admin_required
+@permiso_required('caja')
 def eliminar_categoria_egreso(request, pk):
     """Elimina una categoría de egreso."""
     categoria = get_object_or_404(CategoriaEgreso, pk=pk)

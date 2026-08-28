@@ -9,12 +9,12 @@ from django.db.models import Q
 from .models import MovimientoInventario, ConsumoInterno
 from .forms import MovimientoInventarioForm, ConsumoInternoForm
 from .services import registrar_movimiento as servicio_registrar_movimiento
-from apps.usuarios.decorators import admin_required
+from apps.usuarios.decorators import admin_required, permiso_required
 from apps.productos.models import Producto
 
 
 @login_required
-@admin_required
+@permiso_required('inventario')
 def lista_inventario(request):
     """
     Vista principal de inventario.
@@ -28,7 +28,7 @@ def lista_inventario(request):
 
 
 @login_required
-@admin_required
+@permiso_required('inventario')
 def registrar_movimiento(request):
     """
     Registra un movimiento de inventario (entrada, salida, ajuste).
@@ -61,7 +61,7 @@ def registrar_movimiento(request):
 
 
 @login_required
-@admin_required
+@permiso_required('inventario')
 def historial_inventario(request):
     """
     Historial completo de movimientos de inventario.
@@ -117,7 +117,7 @@ def buscar_inventario(request):
 
 
 @login_required
-@admin_required
+@permiso_required('inventario')
 def registrar_consumo_interno(request):
     """
     Registra consumo interno (hidratación para empleados).
