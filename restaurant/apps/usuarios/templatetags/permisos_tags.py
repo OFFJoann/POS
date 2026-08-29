@@ -19,3 +19,17 @@ def puede(user, codigo):
     if not vendedor:
         return False
     return vendedor.puede(codigo)
+
+
+@register.filter(name='es_receptor')
+def es_receptor(user):
+    """Devuelve True si el usuario es receptor de pedidos.
+
+    Uso en plantillas: {% if user|es_receptor %}
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    vendedor = getattr(user, 'vendedor', None)
+    if not vendedor:
+        return False
+    return bool(vendedor.es_receptor_pedidos)

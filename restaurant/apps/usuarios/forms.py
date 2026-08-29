@@ -15,6 +15,7 @@ class VendedorForm(forms.ModelForm):
     class Meta:
         model = Vendedor
         fields = CAMPOS_BASICOS + [
+            'es_receptor_pedidos',
             'perm_facturar', 'perm_cambiar_precio', 'perm_cortesia',
             'perm_descuento', 'perm_trasladar_mesas', 'perm_cancelar_pedido',
             'perm_productos', 'perm_inventario', 'perm_reportes',

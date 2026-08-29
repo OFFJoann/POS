@@ -80,7 +80,7 @@
                                     {% endif %}
                                     <div class="min-width-0">
                                         <small class="text-muted d-block">{{ producto.codigo }}</small>
-                                        <span class="d-block fw-bold text-break" style="font-size: 0.85rem; line-height: 1.2;">{{ producto.nombre }}</span>
+                                        <span class="d-block fw-bold text-break" style="font-size: 0.85rem; line-height: 1.2;">{{ producto.nombre }}{% if producto.es_combo %} <span class="badge bg-info">Combo</span>{% endif %}</span>
                                         <span class="d-block text-primary fw-bold">${{ producto.precio_venta|mil }}</span>
                                     </div>
                                 </button>
@@ -213,6 +213,14 @@
                         <!-- Botones de cobro -->
                         <div class="d-grid gap-2">
                             {% if pedido.estado != 'pagado' and pedido.estado != 'cerrado' %}
+                            {% if not user|es_receptor and detalles %}
+                            <form method="post" action="{% url 'solicitar_en_caja' pedido.id %}" class="d-grid">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-dark">
+                                    <i class="bi bi-send"></i> Solicitar en caja
+                                </button>
+                            </form>
+                            {% endif %}
                             <button class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#modalCobrar"
                                     {% if pedido.total <= 0 and not detalles %}disabled{% endif %}>
                                 {% if pedido.estado == 'parcial' %}

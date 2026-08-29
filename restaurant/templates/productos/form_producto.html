@@ -27,6 +27,59 @@
                             </div>
                             {% endfor %}
                         </div>
+
+                        <div class="card border-info mb-3" id="seccion-combo" style="display:none;">
+                            <div class="card-header bg-info text-dark">
+                                <i class="bi bi-collection"></i> Productos que incluye el combo
+                            </div>
+                            <div class="card-body">
+                                {{ formset.management_form }}
+                                <div id="combo-forms">
+                                    {% for cf in formset %}
+                                    <div class="row g-2 mb-2 combo-form align-items-end">
+                                        <div class="col-5">
+                                            <label class="form-label small mb-1">Producto</label>
+                                            {{ cf.producto }}
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="form-label small mb-1">Cantidad</label>
+                                            {{ cf.cantidad }}
+                                        </div>
+                                        <div class="col-2">
+                                            {% if cf.instance.pk %}{{ cf.DELETE }}{% endif %}
+                                        </div>
+                                        <div class="col-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-combo">&times;</button>
+                                        </div>
+                                        {% for hidden in cf.hidden_fields %}{{ hidden }}{% endfor %}
+                                        {% if cf.errors %}<div class="col-12 text-danger small">{{ cf.errors|join:', ' }}</div>{% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-combo">
+                                    <i class="bi bi-plus-lg"></i> Agregar producto al combo
+                                </button>
+                                <div class="form-text small">El inventario se descontará de estos productos al vender el combo.</div>
+                            </div>
+                        </div>
+
+                        <template id="combo-empty">
+                            <div class="row g-2 mb-2 combo-form align-items-end">
+                                <div class="col-5">
+                                    <label class="form-label small mb-1">Producto</label>
+                                    {{ formset.empty_form.producto }}
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label small mb-1">Cantidad</label>
+                                    {{ formset.empty_form.cantidad }}
+                                </div>
+                                <div class="col-2"></div>
+                                <div class="col-2">
+                                    <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-combo">&times;</button>
+                                </div>
+                                {% for hidden in formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                            </div>
+                        </template>
                         {% if producto and producto.imagen %}
                         <div class="mb-3 text-center">
                             <div style="width: 200px; height: 200px; margin: 0 auto; overflow: hidden; border-radius: 8px; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
@@ -49,4 +102,62 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var check = document.getElementById('id_es_combo');
+    var seccion = document.getElementById('seccion-combo');
+    var forms = document.getElementById('combo-forms');
+    var totalInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+
+    function toggle() {
+        if (!check || !seccion) return;
+        seccion.style.display = check.checked ? 'block' : 'none';
+    }
+    if (check) {
+        check.addEventListener('change', toggle);
+        toggle();
+    }
+
+    var addBtn = document.getElementById('add-combo');
+    if (addBtn && totalInput) {
+        addBtn.addEventListener('click', function () {
+            var idx = parseInt(totalInput.value, 10);
+            var tpl = document.getElementById('combo-empty').innerHTML;
+            var html = tpl.replace(/__prefix__/g, idx);
+            forms.insertAdjacentHTML('beforeend', html);
+            totalInput.value = idx + 1;
+        });
+    }
+
+    if (forms) {
+        function renumber() {
+            var rows = forms.querySelectorAll('.combo-form');
+            if (totalInput) totalInput.value = rows.length;
+            rows.forEach(function (row, i) {
+                row.querySelectorAll('input, select').forEach(function (el) {
+                    ['name', 'id'].forEach(function (attr) {
+                        if (el[attr] && el[attr].indexOf('-') !== -1) {
+                            el[attr] = el[attr].replace(/-\d+-/, '-' + i + '-');
+                        }
+                    });
+                });
+            });
+        }
+        forms.addEventListener('click', function (e) {
+            if (e.target.classList.contains('btn-eliminar-combo')) {
+                var row = e.target.closest('.combo-form');
+                var del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (del) {
+                    del.checked = true;
+                    row.style.display = 'none';
+                } else {
+                    row.remove();
+                    renumber();
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

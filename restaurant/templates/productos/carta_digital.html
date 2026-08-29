@@ -34,7 +34,10 @@
                     </div>
                     {% endif %}
                     <div class="card-body pt-0">
-                        <h6 class="card-title mb-0">{{ producto.nombre }}</h6>
+                        <h6 class="card-title mb-0">
+                            {{ producto.nombre }}
+                            {% if producto.es_combo %}<span class="badge bg-info ms-1">Combo</span>{% endif %}
+                        </h6>
                     </div>
                 </div>
             </div>

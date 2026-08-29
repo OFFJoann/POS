@@ -28,7 +28,7 @@ class Command(BaseCommand):
         from apps.ventas.models import Factura, Pago
         from apps.inventario.models import MovimientoInventario, ConsumoInterno
         from apps.caja.models import Egreso, AperturaCaja, CategoriaEgreso
-        from apps.productos.models import Producto, Categoria, UnidadMedida
+        from apps.productos.models import Producto, Categoria, UnidadMedida, ComboComponente
 
         admin_vendedor = Vendedor.objects.filter(cedula='1234567890').first()
         if not admin_vendedor:
@@ -64,6 +64,7 @@ class Command(BaseCommand):
             eliminados['consumos_internos'] = ConsumoInterno.objects.all().delete()[0]
             eliminados['egresos'] = Egreso.objects.all().delete()[0]
             eliminados['aperturas_caja'] = AperturaCaja.objects.all().delete()[0]
+            eliminados['combo_componentes'] = ComboComponente.objects.all().delete()[0]
             eliminados['productos'] = Producto.objects.all().delete()[0]
             eliminados['categorias'] = Categoria.objects.all().delete()[0]
             eliminados['unidades_medida'] = UnidadMedida.objects.all().delete()[0]
@@ -81,7 +82,7 @@ class Command(BaseCommand):
             count, _ = otros_users.delete()
             eliminados['usuarios_extra'] = count
 
-        self.stdout.write(self.style.SUCCESS('\n✅ Datos eliminados correctamente.\n'))
+        self.stdout.write(self.style.SUCCESS('\nDatos eliminados correctamente.\n'))
         for key, count in eliminados.items():
             if count:
                 self.stdout.write(f'   {key}: {count} registro(s) eliminado(s)')

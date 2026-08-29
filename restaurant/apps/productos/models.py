@@ -75,6 +75,11 @@ class Producto(models.Model):
     )
     stock_actual = models.IntegerField('Stock actual', default=0)
     stock_minimo = models.IntegerField('Stock mínimo', default=0)
+    es_combo = models.BooleanField(
+        'Es combo', default=False,
+        help_text='Si es True, este producto es un conjunto de otros productos '
+                  'y al venderse descuenta el inventario de sus componentes.'
+    )
     imagen = models.ImageField(
         'Imagen', upload_to='productos/', blank=True, null=True
     )
@@ -102,3 +107,30 @@ class Producto(models.Model):
     def stock_bajo(self):
         """Indica si el stock está por debajo del mínimo."""
         return self.stock_actual <= self.stock_minimo
+
+
+class ComboComponente(models.Model):
+    """
+    Producto que forma parte de un combo.
+
+    El combo es un Producto con ``es_combo=True``; cada registro indica
+    cuántas unidades de ``producto`` se descuentan del inventario al
+    vender una unidad del combo.
+    """
+    combo = models.ForeignKey(
+        Producto, on_delete=models.CASCADE,
+        related_name='componentes', verbose_name='Combo'
+    )
+    producto = models.ForeignKey(
+        Producto, on_delete=models.PROTECT,
+        related_name='combos', verbose_name='Producto'
+    )
+    cantidad = models.IntegerField('Cantidad', default=1)
+
+    class Meta:
+        verbose_name = 'Componente de combo'
+        verbose_name_plural = 'Componentes de combo'
+        ordering = ['id']
+
+    def __str__(self):
+        return f'{self.cantidad} × {self.producto.nombre}'

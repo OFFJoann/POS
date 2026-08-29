@@ -29,6 +29,20 @@
 
                         <hr>
                         <h6 class="text-muted mb-3">
+                            <i class="bi bi-bell"></i> Funciones especiales
+                        </h6>
+                        <div class="form-check mb-3 p-2 border rounded">
+                            {{ form.es_receptor_pedidos }}
+                            <label class="form-check-label" for="{{ form.es_receptor_pedidos.id_for_label }}">
+                                <strong>{{ form.es_receptor_pedidos.label }}</strong>
+                            </label>
+                            {% if form.es_receptor_pedidos.help_text %}
+                            <div><small class="text-muted">{{ form.es_receptor_pedidos.help_text }}</small></div>
+                            {% endif %}
+                        </div>
+
+                        <hr>
+                        <h6 class="text-muted mb-3">
                             <i class="bi bi-shield-lock"></i> Permisos
                         </h6>
                         <p class="text-muted small mb-3">

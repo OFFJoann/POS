@@ -65,6 +65,9 @@ class Vendedor(models.Model):
     perm_ver_facturas = models.BooleanField('Ver facturas', default=True,
         help_text='Consultar y ver el detalle de las facturas emitidas. '
                   'Independiente de poder facturar/cobrar.')
+    es_receptor_pedidos = models.BooleanField('Receptor de pedidos', default=False,
+        help_text='Recibe notificaciones en tiempo real de los pedidos '
+                  'enviados a caja desde las mesas.')
 
     # Mapa código de permiso -> (campo, etiqueta, descripción)
     PERMISOS = {

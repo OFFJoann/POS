@@ -123,7 +123,7 @@ def cerrar_caja(request):
         return redirect('estado_caja')
 
     from apps.ventas.services import comisiones_por_vendedor
-    from apps.mesas.models import Pedido
+    from apps.mesas.models import Pedido, SolicitudPedido
     from django.db.models import Sum, Case, When, F
     comisiones = comisiones_por_vendedor(caja.fecha_apertura, caja._fecha_fin)
     total_comisiones = sum((c['total'] or 0) for c in comisiones)
@@ -191,6 +191,12 @@ def cerrar_caja(request):
             )
         else:
             messages.success(request, 'Caja cerrada correctamente.')
+
+        # Limpiar las notificaciones de "Pedidos de vendedores" al cerrar la
+        # caja, para no arrastrar avisos de días anteriores. Los detalles
+        # quedan sin vincular (SET_NULL) y no afecta las ventas ya cobradas.
+        SolicitudPedido.objects.all().delete()
+
         return redirect('consolidados')
 
     return render(request, 'caja/confirmar_cierre.html', {

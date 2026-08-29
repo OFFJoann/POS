@@ -3,6 +3,8 @@ Servicios de la aplicación mesas.
 
 Contiene la lógica de negocio para gestión de mesas y pedidos.
 """
+from decimal import Decimal
+
 from django.db import transaction
 from django.utils import timezone
 from .models import Mesa, Pedido, DetallePedido
@@ -56,21 +58,31 @@ def agregar_producto_a_pedido(pedido, producto_id, cantidad=1, cortesia=False, p
         precio = precio_personalizado
     else:
         precio = producto.precio_venta
-    detalle, creado = DetallePedido.objects.get_or_create(
+    # Si ya existe un detalle AÚN NO enviado a caja para este producto, se
+    # incrementa su cantidad. Si el detalle existente ya fue enviado
+    # (solicitud distinto de NULL, pendiente o atendida), se crea un detalle
+    # nuevo para la adición, para que "Solicitar en caja" envíe únicamente lo
+    # nuevo y no reenvíe lo que ya está atendido en caja.
+    detalle = DetallePedido.objects.filter(
         pedido=pedido,
         producto=producto,
         es_cortesia=cortesia,
         precio_unitario=precio,
-        defaults={
-            'cantidad': cantidad,
-            'subtotal': precio * cantidad,
-        }
-    )
-    if not creado:
+        solicitud__isnull=True,
+    ).first()
+    if detalle:
         detalle.cantidad += cantidad
-        detalle.precio_unitario = precio
         detalle.subtotal = detalle.cantidad * precio
         detalle.save()
+    else:
+        detalle = DetallePedido.objects.create(
+            pedido=pedido,
+            producto=producto,
+            es_cortesia=cortesia,
+            precio_unitario=precio,
+            cantidad=cantidad,
+            subtotal=precio * cantidad,
+        )
 
     pedido.calcular_totales()
     return detalle
@@ -81,6 +93,61 @@ def modificar_cantidad(detalle_id, nueva_cantidad):
     """Modifica la cantidad de un producto en el pedido."""
     detalle = DetallePedido.objects.get(pk=detalle_id)
     detalle.cantidad = nueva_cantidad
+    detalle.subtotal = detalle.cantidad * detalle.precio_unitario
+    detalle.save()
+    detalle.pedido.calcular_totales()
+    return detalle
+
+
+@transaction.atomic
+def actualizar_cantidad_detalle(detalle, nueva_cantidad):
+    """Actualiza la cantidad de un detalle respetando lo ya enviado a caja.
+
+    - Detalle aún no enviado (solicitud NULL): se cambia su cantidad directo.
+    - Detalle YA enviado y se aumenta: la diferencia se guarda en un detalle
+      nuevo sin enviar, para que "Solicitar en caja" mande solo el agregado.
+    - Se reduce o elimina: se aplica sobre el detalle original.
+    """
+    nueva = Decimal(str(nueva_cantidad))
+    if nueva <= 0:
+        pedido = detalle.pedido
+        detalle.delete()
+        pedido.calcular_totales()
+        return None
+
+    if detalle.solicitud is None:
+        detalle.cantidad = nueva
+        detalle.subtotal = detalle.cantidad * detalle.precio_unitario
+        detalle.save()
+        detalle.pedido.calcular_totales()
+        return detalle
+
+    if nueva > detalle.cantidad:
+        delta = nueva - detalle.cantidad
+        existente = DetallePedido.objects.filter(
+            pedido=detalle.pedido,
+            producto=detalle.producto,
+            es_cortesia=detalle.es_cortesia,
+            precio_unitario=detalle.precio_unitario,
+            solicitud__isnull=True,
+        ).exclude(pk=detalle.pk).first()
+        if existente:
+            existente.cantidad += delta
+            existente.subtotal = existente.cantidad * existente.precio_unitario
+            existente.save()
+        else:
+            DetallePedido.objects.create(
+                pedido=detalle.pedido,
+                producto=detalle.producto,
+                es_cortesia=detalle.es_cortesia,
+                precio_unitario=detalle.precio_unitario,
+                cantidad=delta,
+                subtotal=detalle.precio_unitario * delta,
+            )
+        detalle.pedido.calcular_totales()
+        return detalle
+
+    detalle.cantidad = nueva
     detalle.subtotal = detalle.cantidad * detalle.precio_unitario
     detalle.save()
     detalle.pedido.calcular_totales()

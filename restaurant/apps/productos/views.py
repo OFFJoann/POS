@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import ProtectedError, Prefetch
 from .models import Producto, Categoria, UnidadMedida
-from .forms import ProductoForm, CategoriaForm, UnidadMedidaForm
+from .forms import ProductoForm, CategoriaForm, UnidadMedidaForm, ComboComponenteFormSet
 from .services import buscar_productos_por_termino
 from apps.usuarios.decorators import admin_required, permiso_required
 
@@ -25,35 +25,57 @@ def lista_productos(request):
 @login_required
 @permiso_required('productos')
 def crear_producto(request):
-    """Crea un nuevo producto."""
+    """Crea un nuevo producto (puede ser un combo con componentes)."""
     if request.method == 'POST':
         form = ProductoForm(request.POST, request.FILES)
+        formset = ComboComponenteFormSet(request.POST, instance=Producto())
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Producto creado correctamente.')
-            return redirect('lista_productos')
+            producto = form.save(commit=False)
+            if producto.es_combo and not formset.is_valid():
+                pass  # se re-renderiza con errores del formset
+            else:
+                producto.save()
+                if producto.es_combo:
+                    formset.instance = producto
+                    formset.save()
+                else:
+                    producto.componentes.all().delete()
+                messages.success(request, 'Producto creado correctamente.')
+                return redirect('lista_productos')
     else:
         form = ProductoForm()
+        formset = ComboComponenteFormSet(instance=Producto())
     return render(request, 'productos/form_producto.html', {
-        'form': form, 'accion': 'Crear'
+        'form': form, 'formset': formset, 'accion': 'Crear'
     })
 
 
 @login_required
 @permiso_required('productos')
 def editar_producto(request, pk):
-    """Edita un producto existente."""
+    """Edita un producto existente (incluye sus componentes si es combo)."""
     producto = get_object_or_404(Producto, pk=pk)
     if request.method == 'POST':
         form = ProductoForm(request.POST, request.FILES, instance=producto)
+        formset = ComboComponenteFormSet(request.POST, instance=producto)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Producto actualizado correctamente.')
-            return redirect('lista_productos')
+            producto = form.save(commit=False)
+            if producto.es_combo and not formset.is_valid():
+                pass  # se re-renderiza con errores del formset
+            else:
+                producto.save()
+                if producto.es_combo:
+                    formset.instance = producto
+                    formset.save()
+                else:
+                    producto.componentes.all().delete()
+                messages.success(request, 'Producto actualizado correctamente.')
+                return redirect('lista_productos')
     else:
         form = ProductoForm(instance=producto)
+        formset = ComboComponenteFormSet(instance=producto)
     return render(request, 'productos/form_producto.html', {
-        'form': form, 'accion': 'Editar', 'producto': producto
+        'form': form, 'formset': formset, 'accion': 'Editar', 'producto': producto
     })
 
 
@@ -179,7 +201,25 @@ def crear_categoria(request):
     else:
         form = CategoriaForm()
     return render(request, 'productos/form_categoria.html', {
-        'form': form
+        'form': form, 'accion': 'Crear'
+    })
+
+
+@login_required
+@permiso_required('productos')
+def editar_categoria(request, pk):
+    """Edita una categoría existente."""
+    categoria = get_object_or_404(Categoria, pk=pk)
+    if request.method == 'POST':
+        form = CategoriaForm(request.POST, instance=categoria)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Categoría actualizada correctamente.')
+            return redirect('lista_categorias')
+    else:
+        form = CategoriaForm(instance=categoria)
+    return render(request, 'productos/form_categoria.html', {
+        'form': form, 'accion': 'Editar', 'categoria': categoria
     })
 
 

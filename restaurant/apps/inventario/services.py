@@ -3,6 +3,8 @@ Servicios de la aplicación inventario.
 
 Contiene la lógica de negocio para movimientos de inventario.
 """
+from collections import defaultdict
+
 from django.db import transaction
 from .models import MovimientoInventario
 from apps.productos.models import Producto
@@ -53,3 +55,31 @@ def descontar_inventario(producto, cantidad, pedido_id=None):
         motivo=f'Venta Pedido #{pedido_id}' if pedido_id else 'Venta',
         descripcion=f'Descuento automático por venta',
     )
+
+
+def descontar_pedido(pedido):
+    """
+    Descuenta el inventario de un pedido al facturar.
+
+    Si un detalle es un combo (``es_combo=True``), descuenta del inventario
+    real cada uno de sus productos componentes multiplicado por la cantidad
+    vendida del combo. Agrupa por producto para evitar movimientos duplicados.
+    """
+    movimientos = defaultdict(int)
+    detalles = (
+        pedido.detalles
+        .select_related('producto')
+        .prefetch_related('producto__componentes__producto')
+        .all()
+    )
+    for detalle in detalles:
+        producto = detalle.producto
+        if getattr(producto, 'es_combo', False):
+            for comp in producto.componentes.all():
+                if comp.producto_id:
+                    movimientos[comp.producto] += comp.cantidad * detalle.cantidad
+        else:
+            movimientos[producto] += detalle.cantidad
+
+    for producto, cantidad in movimientos.items():
+        descontar_inventario(producto, cantidad, pedido.id)

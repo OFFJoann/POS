@@ -1,0 +1,86 @@
+{% extends 'base/base.html' %}
+{% load permisos_tags %}
+
+{% block title %}Pedidos de vendedores{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3><i class="bi bi-bell"></i> Pedidos de vendedores</h3>
+        <div class="btn-group" role="group">
+            <a href="{% url 'pedidos_vendedores' %}?estado=pendiente"
+               class="btn btn-sm {% if estado == 'pendiente' %}btn-warning{% else %}btn-outline-secondary{% endif %}">
+                Pendientes <span class="badge bg-dark">{{ pendientes }}</span>
+            </a>
+            <a href="{% url 'pedidos_vendedores' %}?estado=atendida"
+               class="btn btn-sm {% if estado == 'atendida' %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                Atendidas <span class="badge bg-dark">{{ atendidas }}</span>
+            </a>
+            <a href="{% url 'pedidos_vendedores' %}?estado=todas"
+               class="btn btn-sm {% if estado == 'todas' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                Todas
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Mesa</th>
+                            <th>Solicitante</th>
+                            <th>Fecha</th>
+                            <th>Productos</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in solicitudes %}
+                        <tr>
+                            <td><strong>Mesa {{ s.mesa.numero }}</strong></td>
+                            <td>{{ s.solicitante|default:'—' }}</td>
+                            <td>{{ s.created_at|date:'d/m H:i' }}</td>
+                            <td>
+                                <ul class="mb-0 small">
+                                    {% for d in s.detalles.all %}
+                                    <li>{{ d.cantidad }} × {{ d.producto.nombre }}{% if d.es_cortesia %} 🎁{% endif %}</li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                            <td>
+                                {% if s.estado == 'pendiente' %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% else %}
+                                <span class="badge bg-success">Atendida</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if s.estado == 'pendiente' %}
+                                <form method="post" action="{% url 'marcar_solicitud_atendida' s.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="bi bi-check-lg"></i> Atender
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                No hay pedidos en esta vista.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

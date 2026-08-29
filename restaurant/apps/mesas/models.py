@@ -40,6 +40,44 @@ class Mesa(models.Model):
         return f'Mesa {self.numero}'
 
 
+class SolicitudPedido(models.Model):
+    """
+    Solicitud de un pedido enviada a caja ("Solicitar en caja").
+
+    Agrupa los detalles de un pedido que un mesero envía al receptor de
+    pedidos. Permanece pendiente hasta que el receptor la atiende.
+    """
+    ESTADOS = [
+        ('pendiente', 'Pendiente'),
+        ('atendida', 'Atendida'),
+    ]
+
+    pedido = models.ForeignKey(
+        'Pedido', on_delete=models.CASCADE,
+        related_name='solicitudes', verbose_name='Pedido'
+    )
+    mesa = models.ForeignKey(
+        Mesa, on_delete=models.CASCADE,
+        related_name='solicitudes', verbose_name='Mesa'
+    )
+    solicitante = models.ForeignKey(
+        'usuarios.Vendedor', on_delete=models.SET_NULL, null=True,
+        related_name='solicitudes_enviadas', verbose_name='Solicitante'
+    )
+    estado = models.CharField(
+        'Estado', max_length=10, choices=ESTADOS, default='pendiente'
+    )
+    created_at = models.DateTimeField('Creado', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Solicitud de pedido'
+        verbose_name_plural = 'Solicitudes de pedido'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Solicitud #{self.id} - Mesa {self.mesa.numero}'
+
+
 class Pedido(models.Model):
     """
     Pedido realizado en una mesa.
@@ -141,6 +179,10 @@ class DetallePedido(models.Model):
     es_cortesia = models.BooleanField('Cortesía', default=False)
     observaciones = models.CharField(
         'Observaciones', max_length=255, blank=True
+    )
+    solicitud = models.ForeignKey(
+        'SolicitudPedido', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='detalles', verbose_name='Solicitud enviada'
     )
     created_at = models.DateTimeField('Creado', auto_now_add=True)
 

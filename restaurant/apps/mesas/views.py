@@ -11,10 +11,10 @@ from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
 from django.db.models import Max, Prefetch
-from .models import Mesa, Pedido, DetallePedido
+from .models import Mesa, Pedido, DetallePedido, SolicitudPedido
 from .services import (
     crear_pedido, agregar_producto_a_pedido,
-    modificar_cantidad, eliminar_detalle,
+    modificar_cantidad, eliminar_detalle, actualizar_cantidad_detalle,
     aplicar_descuento, cerrar_pedido
 )
 from .forms import AgregarProductoForm, DescuentoForm, MesaForm
@@ -60,7 +60,6 @@ def _puede_cortesia_o_precio(user, request, permitir_cortesia, permitir_precio):
     )
 from apps.ventas.models import Factura, Pago
 from apps.caja.models import AperturaCaja
-from apps.inventario.services import descontar_inventario
 
 
 def _tiene_vendedor(user):
@@ -310,7 +309,7 @@ def quitar_producto(request, pedido_id, detalle_id):
 
         nueva_cantidad = request.POST.get('cantidad')
         if nueva_cantidad and Decimal(nueva_cantidad) > 0:
-            modificar_cantidad(detalle_id, Decimal(nueva_cantidad))
+            actualizar_cantidad_detalle(detalle, Decimal(nueva_cantidad))
             messages.success(request, 'Cantidad actualizada.')
         else:
             eliminar_detalle(detalle_id)
@@ -427,19 +426,9 @@ def cobrar_pedido(request, pedido_id):
             factura._skip_inventory_deduction = True
             factura.save()
 
-            # Descontar inventario agrupando por producto (evita duplicar instancias)
-            from itertools import groupby
-            from operator import attrgetter
-            from apps.inventario.services import descontar_inventario
-            detalles = pedido.detalles.select_related('producto').order_by('producto_id').all()
-            for producto_id, grupo in groupby(detalles, attrgetter('producto_id')):
-                items = list(grupo)
-                total_cantidad = sum(d.cantidad for d in items)
-                descontar_inventario(
-                    producto=items[0].producto,
-                    cantidad=total_cantidad,
-                    pedido_id=pedido.id,
-                )
+            # Descontar inventario (los combos descuentan sus componentes)
+            from apps.inventario.services import descontar_pedido
+            descontar_pedido(pedido)
 
         # Registrar pago
         Pago.objects.create(
@@ -543,19 +532,10 @@ def pago_parcial(request, pedido_id):
         pedido.mesa.estado = 'parcial'
         pedido.mesa.save()
 
-        # Descontar inventario completo al primer pago (agrupado por producto)
+        # Descontar inventario completo al primer pago (incluye combos)
         if not Factura.objects.filter(pedido=pedido, es_parcial=True).exclude(pk=factura.pk).exists():
-            from itertools import groupby
-            from operator import attrgetter
-            detalles = pedido.detalles.select_related('producto').order_by('producto_id').all()
-            for producto_id, grupo in groupby(detalles, attrgetter('producto_id')):
-                items = list(grupo)
-                total_cantidad = sum(d.cantidad for d in items)
-                descontar_inventario(
-                    items[0].producto,
-                    total_cantidad,
-                    pedido_id=pedido.id,
-                )
+            from apps.inventario.services import descontar_pedido
+            descontar_pedido(pedido)
 
         messages.success(
             request,
@@ -610,6 +590,132 @@ def liberar_mesa(request, mesa_id):
     mesa.save()
     messages.success(request, f'Mesa {mesa.numero} liberada.')
     return redirect('vista_mesas')
+
+
+@login_required
+@permiso_required('facturar')
+def solicitar_en_caja(request, pedido_id):
+    """
+    Envía los productos aún no enviados de un pedido al receptor de pedidos.
+
+    Crea una SolicitudPedido con los detalles que aún no han sido enviados
+    (solicitud IS NULL), de modo que envíos sucesivos solo mandan lo nuevo.
+    """
+    pedido = get_object_or_404(Pedido, pk=pedido_id)
+
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        return redirect('vista_mesas')
+
+    if request.method == 'POST':
+        # Solo se envían los productos que aún no han sido enviados a caja
+        # (solicitud IS NULL). Así cada "Solicitar en caja" manda únicamente
+        # las adiciones nuevas, nunca la mesa completa de nuevo.
+        detalles_nuevos = pedido.detalles.filter(solicitud__isnull=True)
+        if not detalles_nuevos.exists():
+            messages.warning(request, 'No hay productos nuevos por enviar a caja.')
+            return redirect('detalle_pedido', pedido_id=pedido_id)
+
+        solicitud = SolicitudPedido.objects.create(
+            pedido=pedido,
+            mesa=pedido.mesa,
+            solicitante=request.user.vendedor,
+        )
+        detalles_nuevos.update(solicitud=solicitud)
+        messages.success(request, 'Productos enviados a caja.')
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    return redirect('detalle_pedido', pedido_id=pedido_id)
+
+
+@login_required
+def solicitudes_pendientes_api(request):
+    """API que retorna las solicitudes pendientes para el receptor de pedidos."""
+    v = getattr(request.user, 'vendedor', None)
+    if not (request.user.is_staff or request.user.is_superuser
+            or (v and v.es_receptor_pedidos)):
+        return JsonResponse({'error': 'No autorizado'}, status=403)
+
+    solicitudes = (
+        SolicitudPedido.objects
+        .filter(estado='pendiente')
+        .select_related('mesa', 'solicitante', 'pedido')
+        .prefetch_related('detalles__producto')
+        .order_by('-created_at')[:20]
+    )
+    data = []
+    for s in solicitudes:
+        items = [{
+            'producto': d.producto.nombre,
+            'cantidad': float(d.cantidad),
+            'cortesia': d.es_cortesia,
+        } for d in s.detalles.all()]
+        data.append({
+            'id': s.id,
+            'pedido_id': s.pedido_id,
+            'mesa': s.mesa.numero,
+            'solicitante': str(s.solicitante) if s.solicitante else '—',
+            'created_at': s.created_at.strftime('%H:%M'),
+            'items': items,
+        })
+    return JsonResponse({'solicitudes': data})
+
+
+@login_required
+def marcar_solicitud_atendida(request, solicitud_id):
+    """Marca una solicitud como atendida (solo receptor de pedidos)."""
+    v = getattr(request.user, 'vendedor', None)
+    if not (request.user.is_staff or request.user.is_superuser
+            or (v and v.es_receptor_pedidos)):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'No autorizado'}, status=403)
+        messages.error(request, 'No tienes permiso para realizar esta acción.')
+        return redirect('vista_mesas')
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    solicitud = get_object_or_404(SolicitudPedido, pk=solicitud_id, estado='pendiente')
+    solicitud.estado = 'atendida'
+    solicitud.save()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True})
+    return redirect('pedidos_vendedores')
+
+
+@login_required
+def pedidos_vendedores(request):
+    """
+    Módulo "Pedidos de vendedores" para el receptor de pedidos.
+
+    Muestra el historial de solicitudes enviadas a caja (pendientes,
+    atendidas o todas) y permite marcar las pendientes como atendidas.
+    """
+    v = getattr(request.user, 'vendedor', None)
+    if not (request.user.is_staff or request.user.is_superuser
+            or (v and v.es_receptor_pedidos)):
+        messages.error(request, 'No tienes acceso a este módulo.')
+        return redirect('vista_mesas')
+
+    estado = request.GET.get('estado', 'pendiente')
+    solicitudes = (
+        SolicitudPedido.objects
+        .select_related('mesa', 'solicitante', 'pedido')
+        .prefetch_related('detalles__producto')
+        .order_by('-created_at')
+    )
+    if estado in ('pendiente', 'atendida'):
+        solicitudes = solicitudes.filter(estado=estado)
+
+    pendientes = SolicitudPedido.objects.filter(estado='pendiente').count()
+    atendidas = SolicitudPedido.objects.filter(estado='atendida').count()
+
+    return render(request, 'mesas/pedidos_vendedores.html', {
+        'solicitudes': solicitudes,
+        'estado': estado,
+        'pendientes': pendientes,
+        'atendidas': atendidas,
+    })
 
 
 @login_required

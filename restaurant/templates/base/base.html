@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% load static %}
+{% load permisos_tags %}
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -36,5 +37,20 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="{% static 'js/app.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    {% if user|es_receptor %}
+    <!-- Modal de solicitudes de pedido (receptor) -->
+    <div class="modal fade" id="modalSolicitudes" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="bi bi-bell"></i> Pedidos recibidos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="solicitudesBody"></div>
+            </div>
+        </div>
+    </div>
+    <script src="{% static 'js/solicitudes.js' %}?v=2"></script>
+    {% endif %}
 </body>
 </html>

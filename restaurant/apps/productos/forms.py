@@ -1,12 +1,13 @@
 from django import forms
-from .models import Producto, Categoria, UnidadMedida
+from django.forms import inlineformset_factory
+from .models import Producto, Categoria, UnidadMedida, ComboComponente
 
 
 class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = [
-            'codigo', 'nombre', 'categoria', 'unidad',
+            'codigo', 'nombre', 'categoria', 'unidad', 'es_combo',
             'precio_venta', 'costo', 'comision', 'stock_actual',
             'stock_minimo', 'imagen', 'estado'
         ]
@@ -35,6 +36,30 @@ class ProductoForm(forms.ModelForm):
             }),
             'estado': forms.Select(attrs={'class': 'form-select'}),
         }
+
+
+class ComboComponenteForm(forms.ModelForm):
+    class Meta:
+        model = ComboComponente
+        fields = ['producto', 'cantidad']
+        widgets = {
+            'producto': forms.Select(attrs={'class': 'form-select'}),
+            'cantidad': forms.NumberInput(attrs={
+                'class': 'form-control', 'min': 1, 'step': 1
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['producto'].queryset = Producto.objects.exclude(
+            es_combo=True
+        ).order_by('nombre')
+
+
+ComboComponenteFormSet = inlineformset_factory(
+    Producto, ComboComponente, fk_name='combo', form=ComboComponenteForm,
+    fields=['producto', 'cantidad'], extra=1, can_delete=True
+)
 
 
 class CategoriaForm(forms.ModelForm):

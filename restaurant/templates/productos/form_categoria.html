@@ -1,6 +1,6 @@
 {% extends 'base/base.html' %}
 
-{% block title %}Nueva Categoría{% endblock %}
+{% block title %}{{ accion|default:'Nueva' }} Categoría{% endblock %}
 
 {% block content %}
 <div class="container py-3">
@@ -8,7 +8,7 @@
         <div class="col-md-6">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">
-                    <h5 class="mb-0"><i class="bi bi-folder-plus"></i> Nueva categoría</h5>
+                    <h5 class="mb-0"><i class="bi bi-folder-plus"></i> {{ accion|default:'Nueva' }} categoría</h5>
                 </div>
                 <div class="card-body">
                     <form method="post">
@@ -24,7 +24,7 @@
                         {% endfor %}
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg"></i> Crear
+                                <i class="bi bi-check-lg"></i> {{ accion|default:'Crear' }}
                             </button>
                             <a href="{% url 'lista_categorias' %}" class="btn btn-outline-secondary">
                                 <i class="bi bi-x-lg"></i> Cancelar
