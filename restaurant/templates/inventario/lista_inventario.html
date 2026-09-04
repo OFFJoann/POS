@@ -23,43 +23,55 @@
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover datatable" id="tabla-inventario">
-                    <thead>
+                <table class="table table-hover align-middle mb-0" id="tabla-inventario">
+                    <thead class="table-light">
                         <tr>
-                            <th>Código</th>
                             <th>Producto</th>
                             <th>Categoría</th>
-                            <th>Unidad</th>
-                            <th>Costo</th>
-                            <th>Precio venta</th>
-                            <th>Stock actual</th>
-                            <th>Stock mínimo</th>
-                            <th>Estado</th>
+                            <th class="text-center">Stock actual</th>
+                            <th class="text-end" style="width: 70px;">Detalle</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for p in productos %}
                         <tr class="{% if p.stock_actual <= p.stock_minimo %}table-warning{% endif %}">
-                            <td>{{ p.codigo }}</td>
-                            <td>{{ p.nombre }}</td>
+                            <td class="fw-bold">{{ p.nombre }}</td>
                             <td>{{ p.categoria.nombre }}</td>
-                            <td>{{ p.unidad.abreviatura }}</td>
-                            <td>${{ p.costo|mil }}</td>
-                            <td>${{ p.precio_venta|mil }}</td>
-                            <td class="{% if p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">
-                                {{ p.stock_actual|mil }}
-                            </td>
-                            <td>{{ p.stock_minimo|mil }}</td>
-                            <td>
-                                {% if p.estado == 'activo' %}
-                                <span class="badge bg-success">Activo</span>
-                                {% elif p.estado == 'agotado' %}
-                                <span class="badge bg-danger">Agotado</span>
+                            <td class="text-center">
+                                {% if p.stock_actual <= p.stock_minimo %}
+                                <span class="badge bg-danger fs-6">{{ p.stock_actual|mil }}</span>
                                 {% else %}
-                                <span class="badge bg-secondary">Inactivo</span>
+                                <span class="fs-6">{{ p.stock_actual|mil }}</span>
                                 {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary btn-detalle"
+                                        data-id="{{ p.id }}"
+                                        data-codigo="{{ p.codigo }}"
+                                        data-nombre="{{ p.nombre }}"
+                                        data-categoria="{{ p.categoria.nombre }}"
+                                        data-unidad="{{ p.unidad }}"
+                                        data-precio-venta="{{ p.precio_venta }}"
+                                        data-costo="{{ p.costo }}"
+                                        data-comision="{{ p.comision }}"
+                                        data-stock-actual="{{ p.stock_actual }}"
+                                        data-stock-minimo="{{ p.stock_minimo }}"
+                                        data-es-combo="{{ p.es_combo|yesno:'Sí,No' }}"
+                                        data-estado="{{ p.get_estado_display }}"
+                                        data-estado-valor="{{ p.estado }}"
+                                        data-imagen="{% if p.imagen %}{{ p.imagen.url }}{% endif %}"
+                                        data-fecha-creacion="{{ p.created_at|date:'d/m/Y H:i' }}"
+                                        data-fecha-actualizacion="{{ p.updated_at|date:'d/m/Y H:i' }}">
+                                    <i class="bi bi-info-circle"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                No hay productos en inventario
                             </td>
                         </tr>
                         {% endfor %}
@@ -69,22 +81,175 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Detalle Producto -->
+<div class="modal fade" id="modalDetalleProducto" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" id="detalle-header">
+                <div class="d-flex align-items-center gap-3">
+                    <div id="detalle-imagen-container" class="d-none">
+                        <img id="detalle-imagen" src="" alt=""
+                             style="width:64px; height:64px; object-fit:cover; border-radius:12px;">
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0" id="detalle-nombre"></h5>
+                        <small class="text-muted" id="detalle-codigo"></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Estado -->
+                <div class="text-center mb-4">
+                    <span class="badge fs-6 px-3 py-2" id="detalle-badge-estado"></span>
+                </div>
+
+                <!-- Info cards -->
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Categoría</small>
+                                <span class="fw-bold" id="detalle-categoria"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Unidad</small>
+                                <span class="fw-bold" id="detalle-unidad"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Precio venta</small>
+                                <span class="fw-bold text-primary fs-5" id="detalle-precio-venta"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Costo</small>
+                                <span class="fw-bold fs-5" id="detalle-costo"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Comisión</small>
+                                <span class="fw-bold" id="detalle-comision"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Stock mínimo</small>
+                                <span class="fw-bold" id="detalle-stock-minimo"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Stock actual</small>
+                                <span class="fw-bold fs-5" id="detalle-stock-actual"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center py-3">
+                                <small class="text-muted d-block">Combo</small>
+                                <span class="fw-bold" id="detalle-es-combo"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fechas -->
+                <hr class="my-3">
+                <div class="row text-muted small">
+                    <div class="col-6">
+                        <i class="bi bi-calendar-plus"></i> Creado: <span id="detalle-fecha-creacion"></span>
+                    </div>
+                    <div class="col-6">
+                        <i class="bi bi-calendar-check"></i> Actualizado: <span id="detalle-fecha-actualizacion"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    // Buscar productos
     $('#buscador-inventario').on('input', function() {
         var texto = $(this).val().toLowerCase();
         $('#tabla-inventario tbody tr').each(function() {
-            var codigo = $(this).find('td:eq(0)').text().toLowerCase();
-            var nombre = $(this).find('td:eq(1)').text().toLowerCase();
-            if (codigo.includes(texto) || nombre.includes(texto)) {
+            var nombre = $(this).find('td:eq(0)').text().toLowerCase();
+            var categoria = $(this).find('td:eq(1)').text().toLowerCase();
+            if (nombre.includes(texto) || categoria.includes(texto)) {
                 $(this).show();
             } else {
                 $(this).hide();
             }
         });
+    });
+
+    // Abrir modal detalle
+    $(document).on('click', '.btn-detalle', function() {
+        var btn = $(this);
+
+        $('#detalle-nombre').text(btn.data('nombre'));
+        $('#detalle-codigo').text('Código: ' + btn.data('codigo'));
+        $('#detalle-categoria').text(btn.data('categoria'));
+        $('#detalle-unidad').text(btn.data('unidad'));
+        $('#detalle-precio-venta').text('$' + Number(btn.data('precio-venta')).toLocaleString('es-CO'));
+        $('#detalle-costo').text('$' + Number(btn.data('costo')).toLocaleString('es-CO'));
+        $('#detalle-comision').text('$' + Number(btn.data('comision')).toLocaleString('es-CO'));
+        $('#detalle-stock-actual').text(Number(btn.data('stock-actual')).toLocaleString('es-CO'));
+        $('#detalle-stock-minimo').text(Number(btn.data('stock-minimo')).toLocaleString('es-CO'));
+        $('#detalle-es-combo').text(btn.data('es-combo'));
+        $('#detalle-fecha-creacion').text(btn.data('fecha-creacion'));
+        $('#detalle-fecha-actualizacion').text(btn.data('fecha-actualizacion'));
+
+        // Imagen
+        var img = btn.data('imagen');
+        if (img) {
+            $('#detalle-imagen').attr('src', img);
+            $('#detalle-imagen-container').removeClass('d-none');
+        } else {
+            $('#detalle-imagen-container').addClass('d-none');
+        }
+
+        // Badge estado
+        var badge = $('#detalle-badge-estado');
+        badge.text(btn.data('estado'));
+        badge.removeClass('bg-success bg-danger bg-secondary');
+        var estadoVal = btn.data('estado-valor');
+        if (estadoVal === 'activo') badge.addClass('bg-success');
+        else if (estadoVal === 'agotado') badge.addClass('bg-danger');
+        else badge.addClass('bg-secondary');
+
+        // Color del header segun estado
+        var header = $('#detalle-header');
+        header.removeClass('bg-success bg-danger bg-secondary');
+        if (estadoVal === 'activo') header.addClass('bg-success text-white');
+        else if (estadoVal === 'agotado') header.addClass('bg-danger text-white');
+        else header.addClass('bg-secondary text-white');
+
+        var modal = new bootstrap.Modal(document.getElementById('modalDetalleProducto'));
+        modal.show();
     });
 });
 </script>

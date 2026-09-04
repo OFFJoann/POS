@@ -216,9 +216,89 @@ def lista_consolidados(request):
     """
     Muestra el historial de cierres de caja consolidados.
     """
+    from collections import defaultdict
+    from django.db.models import Sum
+    from django.db.models.functions import ExtractHour
+    from apps.ventas.models import Pago
+
     cierres = CierreCaja.objects.all().order_by('-fecha_cierre')
+
+    datos_cierres = []
+    for c in cierres:
+        facturas = c.facturas_del_dia.select_related('mesa', 'mesero').prefetch_related('pedido__detalles__producto')
+
+        # Agrupar facturas por mesa
+        mesas_dict = defaultdict(list)
+        for f in facturas:
+            mesas_dict[f.mesa.numero].append(f)
+
+        mesas_agrupadas = []
+        for mesa_num in sorted(mesas_dict.keys()):
+            facturas_mesa = mesas_dict[mesa_num]
+            total_mesa = sum(f.total for f in facturas_mesa)
+            mesas_agrupadas.append({
+                'numero': mesa_num,
+                'facturas': facturas_mesa,
+                'total': total_mesa,
+            })
+
+        # Resumen general de productos vendidos
+        productos_resumen = defaultdict(lambda: {'cantidad': 0, 'total': 0})
+        for f in facturas:
+            for d in f.pedido.detalles.all():
+                nombre = d.producto.nombre
+                productos_resumen[nombre]['cantidad'] += d.cantidad
+                productos_resumen[nombre]['total'] += d.subtotal
+
+        productos_lista = sorted(
+            [{'nombre': k, 'cantidad': v['cantidad'], 'total': v['total']}
+             for k, v in productos_resumen.items()],
+            key=lambda x: x['cantidad'],
+            reverse=True,
+        )
+
+        # Ventas por hora (entre apertura y cierre)
+        pagos_hora = (
+            Pago.objects.filter(
+                created_at__gte=c.caja.fecha_apertura,
+                created_at__lte=c.fecha_cierre,
+            )
+            .annotate(hora=ExtractHour('created_at'))
+            .values('hora')
+            .annotate(total=Sum('monto'))
+            .order_by('hora')
+        )
+        ventas_por_hora = {item['hora']: float(item['total']) for item in pagos_hora}
+
+        # Rango completo de horas entre apertura y cierre
+        hora_apertura = c.caja.fecha_apertura.hour
+        hora_cierre = c.fecha_cierre.hour
+        if hora_cierre < hora_apertura:
+            horas_rango = list(range(hora_apertura, 24)) + list(range(0, hora_cierre + 1))
+        else:
+            horas_rango = list(range(hora_apertura, hora_cierre + 1))
+
+        grafico_horas = []
+        max_venta = max(ventas_por_hora.values()) if ventas_por_hora else 1
+        for h in horas_rango:
+            venta = ventas_por_hora.get(h, 0)
+            porcentaje = (venta / max_venta * 100) if max_venta > 0 else 0
+            grafico_horas.append({
+                'hora': str(h),
+                'venta': venta,
+                'porcentaje': round(porcentaje, 1),
+            })
+
+        datos_cierres.append({
+            'cierre': c,
+            'mesas': mesas_agrupadas,
+            'productos': productos_lista,
+            'total_facturas': facturas.count(),
+            'grafico_horas': grafico_horas,
+        })
+
     return render(request, 'caja/consolidados.html', {
-        'cierres': cierres,
+        'datos_cierres': datos_cierres,
         'puede_ver_totales': _puede_ver_totales(request.user),
     })
 

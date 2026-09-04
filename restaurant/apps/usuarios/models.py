@@ -68,6 +68,8 @@ class Vendedor(models.Model):
     es_receptor_pedidos = models.BooleanField('Receptor de pedidos', default=False,
         help_text='Recibe notificaciones en tiempo real de los pedidos '
                   'enviados a caja desde las mesas.')
+    tour_completado = models.BooleanField('Tour completado', default=False,
+        help_text='Indica si el usuario ya completó el recorrido de capacitación.')
 
     # Mapa código de permiso -> (campo, etiqueta, descripción)
     PERMISOS = {

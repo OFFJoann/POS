@@ -197,6 +197,13 @@ def detalle_pedido(request, pedido_id):
         pk=pedido_id
     )
 
+    # Inicia la sesión cuando el mesero entra a la mesa por primera vez.
+    # Solo se setea una vez: al cargar la página. No se resetea en
+    # recargas (F5), redirecciones ni navegación posterior.
+    if request.method == 'GET' and pedido.sesion_inicio is None:
+        pedido.sesion_inicio = timezone.now()
+        pedido.save(update_fields=['sesion_inicio'])
+
     # Verificar permisos
     if not (request.user.is_staff or request.user.is_superuser):
         v = getattr(request.user, 'vendedor', None)
@@ -365,8 +372,11 @@ def cobrar_pedido(request, pedido_id):
     Genera factura, registra pago y descuenta inventario.
     """
     from apps.caja.models import AperturaCaja
+    es_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     if not AperturaCaja.objects.filter(activa=True).exists():
+        if es_ajax:
+            return JsonResponse({'ok': False, 'error': 'No se puede facturar porque la caja está cerrada.'})
         messages.error(request, 'No se puede facturar porque la caja está cerrada.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
@@ -376,6 +386,8 @@ def cobrar_pedido(request, pedido_id):
     )
 
     if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        if es_ajax:
+            return JsonResponse({'ok': False, 'error': 'No tienes permiso.'})
         return redirect('vista_mesas')
 
     if request.method == 'POST':
@@ -384,16 +396,22 @@ def cobrar_pedido(request, pedido_id):
         valor_recibido = Decimal(request.POST.get('valor_recibido', 0))
 
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
+            if es_ajax:
+                return JsonResponse({'ok': False, 'error': 'Método de pago inválido.'})
             messages.error(request, 'Método de pago inválido.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
         if metodo_pago == 'cortesia':
             cortesia_ok, _ = _puede_cortesia_o_precio(request.user, request, True, False)
             if not cortesia_ok:
+                if es_ajax:
+                    return JsonResponse({'ok': False, 'error': 'No tienes permiso para cobrar como cortesía.'})
                 messages.error(request, 'No tienes permiso para cobrar como cortesía.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
 
         if valor_recibido < monto_a_cobrar:
+            if es_ajax:
+                return JsonResponse({'ok': False, 'error': 'El valor recibido es menor al monto a cobrar.'})
             messages.error(request, 'El valor recibido es menor al monto a cobrar.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
@@ -403,7 +421,7 @@ def cobrar_pedido(request, pedido_id):
         if pedido.estado == 'parcial':
             factura = pedido.factura
             factura.metodo_pago = metodo_pago
-            factura.total += monto_a_cobrar
+            factura.total = pedido.total
             factura.valor_recibido = valor_recibido
             factura.cambio = cambio
             factura.es_parcial = False
@@ -451,6 +469,14 @@ def cobrar_pedido(request, pedido_id):
         pedido.mesa.estado = 'libre'
         pedido.mesa.save()
 
+        if es_ajax:
+            return JsonResponse({
+                'ok': True,
+                'factura_id': factura.id,
+                'numero': factura.numero,
+                'cambio': float(cambio),
+                'mesa': pedido.mesa.numero,
+            })
         messages.success(
             request,
             f'Factura #{factura.numero} generada. Cambio: ${cambio}. '
@@ -470,14 +496,19 @@ def pago_parcial(request, pedido_id):
     El pedido queda con saldo pendiente.
     """
     from apps.caja.models import AperturaCaja
+    es_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     if not AperturaCaja.objects.filter(activa=True).exists():
+        if es_ajax:
+            return JsonResponse({'ok': False, 'error': 'No se puede facturar porque la caja está cerrada.'})
         messages.error(request, 'No se puede facturar porque la caja está cerrada.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
     pedido = get_object_or_404(Pedido, pk=pedido_id)
 
     if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        if es_ajax:
+            return JsonResponse({'ok': False, 'error': 'No tienes permiso.'})
         return redirect('vista_mesas')
 
     if request.method == 'POST':
@@ -485,36 +516,52 @@ def pago_parcial(request, pedido_id):
         monto_pago = Decimal(request.POST.get('monto_pago', 0))
 
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
+            if es_ajax:
+                return JsonResponse({'ok': False, 'error': 'Método de pago inválido.'})
             messages.error(request, 'Método de pago inválido.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
         if metodo_pago == 'cortesia':
             cortesia_ok, _ = _puede_cortesia_o_precio(request.user, request, True, False)
             if not cortesia_ok:
+                if es_ajax:
+                    return JsonResponse({'ok': False, 'error': 'No tienes permiso para cobrar como cortesía.'})
                 messages.error(request, 'No tienes permiso para cobrar como cortesía.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
 
-        if monto_pago <= 0 or monto_pago >= pedido.total:
+        # Calcular saldo pendiente real
+        saldo_pendiente = pedido.total if pedido.estado != 'parcial' else pedido.saldo_pendiente
+
+        if monto_pago <= 0 or monto_pago > saldo_pendiente:
+            if es_ajax:
+                return JsonResponse({'ok': False, 'error': 'Monto inválido. Saldo pendiente: $' + str(int(saldo_pendiente))})
             messages.error(request, 'Monto de pago parcial inválido.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
-        saldo_restante = pedido.total - monto_pago
+        saldo_restante = saldo_pendiente - monto_pago
 
-        # Crear factura parcial
-        ultimo_numero = Factura.objects.aggregate(maximo=Max('numero'))['maximo'] or 0
-        factura = Factura.objects.create(
-            numero=ultimo_numero + 1,
-            pedido=pedido,
-            mesa=pedido.mesa,
-            mesero=pedido.mesero,
-            metodo_pago=metodo_pago,
-            subtotal=pedido.subtotal,
-            descuento=pedido.descuento,
-            total=monto_pago,
-            valor_recibido=monto_pago,
-            es_parcial=True,
-            saldo_pendiente=saldo_restante,
-        )
+        # Crear o actualizar factura parcial
+        if pedido.estado == 'parcial' and pedido.factura:
+            factura = pedido.factura
+            factura.total += monto_pago
+            factura.valor_recibido = factura.total
+            factura.saldo_pendiente = saldo_restante
+            factura.save()
+        else:
+            ultimo_numero = Factura.objects.aggregate(maximo=Max('numero'))['maximo'] or 0
+            factura = Factura.objects.create(
+                numero=ultimo_numero + 1,
+                pedido=pedido,
+                mesa=pedido.mesa,
+                mesero=pedido.mesero,
+                metodo_pago=metodo_pago,
+                subtotal=pedido.subtotal,
+                descuento=pedido.descuento,
+                total=monto_pago,
+                valor_recibido=monto_pago,
+                es_parcial=True,
+                saldo_pendiente=saldo_restante,
+            )
 
         Pago.objects.create(
             factura=factura,
@@ -537,6 +584,15 @@ def pago_parcial(request, pedido_id):
             from apps.inventario.services import descontar_pedido
             descontar_pedido(pedido)
 
+        if es_ajax:
+            return JsonResponse({
+                'ok': True,
+                'factura_id': factura.id,
+                'numero': factura.numero,
+                'monto': float(monto_pago),
+                'saldo': float(saldo_restante),
+                'mesa': pedido.mesa.numero,
+            })
         messages.success(
             request,
             f'Pago parcial registrado. Saldo pendiente: ${saldo_restante}'
@@ -607,10 +663,15 @@ def solicitar_en_caja(request, pedido_id):
         return redirect('vista_mesas')
 
     if request.method == 'POST':
-        # Solo se envían los productos que aún no han sido enviados a caja
-        # (solicitud IS NULL). Así cada "Solicitar en caja" manda únicamente
-        # las adiciones nuevas, nunca la mesa completa de nuevo.
+        # Solo se envían los productos que aún no han sido enviados
+        # a caja (solicitud IS NULL) Y que fueron añadidos desde que
+        # el mesero entró a la mesa (sesion_inicio). Cada "Solicitar
+        # en caja" envía únicamente lo nuevo de la sesión actual.
         detalles_nuevos = pedido.detalles.filter(solicitud__isnull=True)
+        if pedido.sesion_inicio:
+            detalles_nuevos = detalles_nuevos.filter(
+                created_at__gte=pedido.sesion_inicio
+            )
         if not detalles_nuevos.exists():
             messages.warning(request, 'No hay productos nuevos por enviar a caja.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
@@ -624,6 +685,112 @@ def solicitar_en_caja(request, pedido_id):
         messages.success(request, 'Productos enviados a caja.')
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
+    return redirect('detalle_pedido', pedido_id=pedido_id)
+
+
+@login_required
+@permiso_required('facturar')
+def solicitar_en_caja_con_productos(request, pedido_id):
+    """
+    Recibe productos seleccionados en el modal, los agrega al pedido
+    y crea una SolicitudPedido para enviar a caja.
+    """
+    import json
+
+    pedido = get_object_or_404(Pedido, pk=pedido_id)
+
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Permiso denegado'}, status=403)
+        return redirect('vista_mesas')
+
+    if pedido.estado not in ('activo', 'parcial'):
+        msg = 'No se pueden agregar productos a un pedido pagado o cerrado.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': msg}, status=400)
+        messages.error(request, msg)
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    if request.method != 'POST':
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    try:
+        data = json.loads(request.body)
+        productos = data.get('productos', [])
+    except (json.JSONDecodeError, AttributeError):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Datos inválidos'}, status=400)
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    if not productos:
+        msg = 'No se seleccionaron productos.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': msg}, status=400)
+        messages.warning(request, msg)
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    solicitud = SolicitudPedido.objects.create(
+        pedido=pedido,
+        mesa=pedido.mesa,
+        solicitante=request.user.vendedor,
+    )
+
+    detalles_agregados = []
+    for item in productos:
+        producto_id = item.get('producto_id')
+        cantidad = Decimal(str(item.get('cantidad', 1)))
+        cortesia = item.get('cortesia', False)
+        precio_str = item.get('precio_unitario', '')
+        precio_personalizado = Decimal(str(precio_str)) if precio_str else None
+
+        cortesia_ok, precio_ok = _puede_cortesia_o_precio(
+            request.user, request, cortesia, precio_personalizado is not None)
+        if not cortesia_ok:
+            cortesia = False
+        if not precio_ok:
+            precio_personalizado = None
+
+        try:
+            producto = Producto.objects.get(pk=producto_id)
+        except Producto.DoesNotExist:
+            continue
+
+        if cortesia:
+            precio = 0
+        elif precio_personalizado is not None:
+            precio = precio_personalizado
+        else:
+            precio = producto.precio_venta
+
+        detalle = DetallePedido.objects.create(
+            pedido=pedido,
+            producto=producto,
+            es_cortesia=cortesia,
+            precio_unitario=precio,
+            cantidad=cantidad,
+            subtotal=precio * cantidad,
+            solicitud=solicitud,
+        )
+        detalles_agregados.append(detalle)
+
+    pedido.calcular_totales()
+
+    if not detalles_agregados:
+        solicitud.delete()
+        msg = 'No se pudieron agregar los productos.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': msg}, status=400)
+        messages.error(request, msg)
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': True,
+            'solicitud_id': solicitud.id,
+            'total_pedido': float(pedido.total),
+        })
+
+    messages.success(request, 'Productos agregados y enviados a caja.')
     return redirect('detalle_pedido', pedido_id=pedido_id)
 
 

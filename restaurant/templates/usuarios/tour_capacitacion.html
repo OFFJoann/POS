@@ -1,0 +1,209 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Capacitación - El Choli{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 py-sm-3" id="tourPage">
+    <div class="text-center py-4">
+        <h4><i class="bi bi-mortarboard"></i> Capacitación</h4>
+        <p class="text-muted">Bienvenido al sistema de facturación El Choli</p>
+        <button class="btn btn-primary" onclick="iniciarTour()">
+            <i class="bi bi-play-fill"></i> Iniciar recorrido
+        </button>
+    </div>
+</div>
+
+<!-- Modal del Tour -->
+<div class="modal fade" id="tourModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold" id="tourTitle"></h5>
+                    <small class="text-muted" id="tourStep"></small>
+                </div>
+                <button type="button" class="btn-close" id="tourClose" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="tourIcon" class="text-center mb-3"></div>
+                <div id="tourContent"></div>
+            </div>
+            <div class="modal-footer border-0 justify-content-between">
+                <button class="btn btn-outline-secondary" id="tourPrev" onclick="tourNav(-1)">
+                    <i class="bi bi-chevron-left"></i> Anterior
+                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" id="tourNext" onclick="tourNav(1)">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const tourSteps = [];
+let tourIdx = 0;
+let tourStarted = false;
+
+function addTourStep(icon, color, title, description, details) {
+    tourSteps.push({ icon, color, title, description, details });
+}
+
+// Bienvenida
+addTourStep('bi-shop', 'primary', 'Bienvenido a El Choli', 
+    'Este es tu sistema de facturación. Te guiaremos por cada módulo que tienes disponible.',
+    ['Diseñado para facilitar tu trabajo diario', 'Cada módulo tiene un icono en la barra superior']);
+
+// ── Mesas ──
+addTourStep('bi-grid-3x3-gap-fill', 'success', 'Mesas',
+    'Gestiona los pedidos de cada mesa del restaurante.',
+    ['Haz clic en una mesa para abrir un pedido', 'Agrega productos seleccionando por categoría o buscando', 'El pedido se envía a caja para facturar y cobrar']);
+
+// ── Facturar ──
+addTourStep('bi-receipt', 'info', 'Facturar y cobrar',
+    'Crea pedidos y procesa cobros de los clientes.',
+    ['Abre un pedido desde la mesa', 'Agrega productos con precio y cantidad', 'Selecciona método de pago y cobra']);
+
+// ── Productos ──
+addTourStep('bi-box-seam', 'warning', 'Productos',
+    'Administra el catálogo de productos del restaurante.',
+    ['Crea productos con nombre, precio y categoría', 'Organiza por categorías y unidades de medida', 'Controla el inventario de cada producto']);
+
+// ── Inventario ──
+addTourStep('bi-clipboard-data', 'secondary', 'Inventario',
+    'Controla las existencias de productos.',
+    ['Registra entradas y salidas de stock', 'Consulta el historial de movimientos', 'Registra consumo interno del restaurante']);
+
+// ── Caja ──
+addTourStep('bi-cash-stack', 'success', 'Caja',
+    'Controla los movimientos de dinero del día.',
+    ['Abre la caja al iniciar tu turno', 'Registra egresos (compras, gastos)', 'Cierra la caja al final del día']);
+
+// ── Consolidados ──
+addTourStep('bi-clock-history', 'info', 'Consolidados',
+    'Consulta resúmenes de ventas por mesa y por hora.',
+    ['Agrupa ventas por mesa', 'Muestra comisiones por vendedor', 'Gráfica de ventas por hora']);
+
+// ── Facturas ──
+addTourStep('bi-receipt-cutoff', 'primary', 'Facturas',
+    'Consulta y descarga las facturas generadas.',
+    ['Busca facturas por número o fecha', 'Descarga PDF de cada factura', 'Filtra por método de pago']);
+
+// ── Comisiones ──
+addTourStep('bi-cash-coin', 'success', 'Comisiones',
+    'Mira cuánto has ganado en comisiones.',
+    ['Consulta tu total de comisiones por caja', 'Detalle de comisiones por producto', 'Actualizado en tiempo real']);
+
+// ── Reportes ──
+addTourStep('bi-graph-up', 'danger', 'Reportes',
+    'Análisis de ventas y rendimiento.',
+    ['Ventas por período y por vendedor', 'Métricas de horas pico', 'Gráficas interactivas']);
+
+// ── Vendedores ── (solo staff)
+addTourStep('bi-people', 'dark', 'Vendedores',
+    'Gestiona los usuarios del sistema.',
+    ['Crea y edita vendedores', 'Asigna permisos granulares', 'Controla quién puede qué']);
+
+// ── Configuración ──
+addTourStep('bi-gear', 'secondary', 'Configuración',
+    'Personaliza el sistema a tu negocio.',
+    ['Nombre y logo del restaurante', 'Valores de comisión y cortesías', 'Datos fiscales para facturación']);
+
+// Filtrar solo los pasos que aplican al usuario
+const permMap = {
+    'Mesas': 'facturar',
+    'Facturar y cobrar': 'facturar',
+    'Productos': 'productos',
+    'Inventario': 'inventario',
+    'Caja': 'caja',
+    'Consolidados': 'caja',
+    'Facturas': 'ver_facturas',
+    'Comisiones': '__all__',
+    'Reportes': 'reportes',
+    'Vendedores': '__staff__',
+    'Configuración': 'configuracion',
+};
+
+const permisosUsuario = {{ permisos_json|safe }};
+
+const filteredSteps = tourSteps.filter(step => {
+    const permCode = permMap[step.title];
+    if (permCode === undefined) return true;
+    if (permCode === '__all__') return true;
+    if (permCode === '__staff__') return false;
+    return permisosUsuario.includes(permCode);
+});
+
+function iniciarTour() {
+    tourIdx = 0;
+    tourStarted = true;
+    document.getElementById('tourClose').style.display = 'none';
+    renderStep();
+    const modal = new bootstrap.Modal(document.getElementById('tourModal'));
+    modal.show();
+}
+
+function renderStep() {
+    const s = filteredSteps[tourIdx];
+    const total = filteredSteps.length;
+    document.getElementById('tourTitle').textContent = s.title;
+    document.getElementById('tourStep').textContent = `Paso ${tourIdx + 1} de ${total}`;
+    document.getElementById('tourIcon').innerHTML = `<i class="bi ${s.icon} display-1 text-${s.color}"></i>`;
+    
+    let html = `<p class="text-center">${s.description}</p>`;
+    if (s.details && s.details.length) {
+        html += '<ul class="list-unstyled mt-3">';
+        s.details.forEach(d => {
+            html += `<li class="mb-2"><i class="bi bi-check-circle-fill text-${s.color} me-2"></i>${d}</li>`;
+        });
+        html += '</ul>';
+    }
+    document.getElementById('tourContent').innerHTML = html;
+
+    // Botones
+    document.getElementById('tourPrev').style.display = tourIdx > 0 ? '' : 'none';
+    
+    const nextBtn = document.getElementById('tourNext');
+    if (tourIdx === total - 1) {
+        nextBtn.className = 'btn btn-success';
+        nextBtn.innerHTML = 'Finalizar <i class="bi bi-check-lg"></i>';
+    } else {
+        nextBtn.className = 'btn btn-success';
+        nextBtn.innerHTML = 'Siguiente <i class="bi bi-chevron-right"></i>';
+    }
+}
+
+function tourNav(dir) {
+    tourIdx += dir;
+    if (tourIdx >= filteredSteps.length) {
+        // Finalizar
+        fetch("{% url 'completar_tour' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        }).finally(() => {
+            bootstrap.Modal.getInstance(document.getElementById('tourModal')).hide();
+            window.location.href = "{% url 'dashboard' %}";
+        });
+        return;
+    }
+    if (tourIdx < 0) tourIdx = 0;
+    renderStep();
+}
+
+// Cerrar modal = marcar completado también
+document.getElementById('tourClose').addEventListener('click', function() {
+    fetch("{% url 'completar_tour' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    });
+});
+</script>
+{% endblock %}

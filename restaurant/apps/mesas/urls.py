@@ -19,6 +19,7 @@ urlpatterns = [
     path('pedido/<int:pedido_id>/cancelar/', views.cancelar_pedido, name='cancelar_pedido'),
     path('pedido/<int:pedido_id>/cobrar/', views.cobrar_pedido, name='cobrar_pedido'),
     path('pedido/<int:pedido_id>/solicitar-caja/', views.solicitar_en_caja, name='solicitar_en_caja'),
+    path('pedido/<int:pedido_id>/solicitar-caja-productos/', views.solicitar_en_caja_con_productos, name='solicitar_en_caja_con_productos'),
     path('solicitudes/pendientes/', views.solicitudes_pendientes_api, name='solicitudes_pendientes_api'),
     path('solicitudes/<int:solicitud_id>/atender/', views.marcar_solicitud_atendida, name='marcar_solicitud_atendida'),
     path('pedidos-vendedores/', views.pedidos_vendedores, name='pedidos_vendedores'),

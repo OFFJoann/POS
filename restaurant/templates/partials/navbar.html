@@ -78,6 +78,11 @@
                     </a>
                 </li>
                 {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'mis_comisiones' %}">
+                        <i class="bi bi-cash-coin"></i> Comisiones
+                    </a>
+                </li>
                 {% if user|puede:"reportes" %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'dashboard_reportes' %}">
@@ -108,6 +113,7 @@
                         {% if user|puede:"configuracion" %}
                         <li><a class="dropdown-item" href="{% url 'editar_configuracion' %}"><i class="bi bi-gear"></i> Configuración</a></li>
                         {% endif %}
+                        <li><a class="dropdown-item" href="{% url 'tour_capacitacion' %}"><i class="bi bi-mortarboard"></i> Repetir tour</a></li>
                         <li><a class="dropdown-item text-danger" href="{% url 'salir' %}"><i class="bi bi-box-arrow-right"></i> Salir</a></li>
                     </ul>
                 </li>

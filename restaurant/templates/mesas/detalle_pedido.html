@@ -213,14 +213,11 @@
                         <!-- Botones de cobro -->
                         <div class="d-grid gap-2">
                             {% if pedido.estado != 'pagado' and pedido.estado != 'cerrado' %}
-                            {% if not user|es_receptor and detalles %}
-                            <form method="post" action="{% url 'solicitar_en_caja' pedido.id %}" class="d-grid">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-dark">
-                                    <i class="bi bi-send"></i> Solicitar en caja
-                                </button>
-                            </form>
-                            {% endif %}
+                             {% if not user|es_receptor %}
+                             <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#modalSolicitarCaja">
+                                 <i class="bi bi-send"></i> Solicitar en caja
+                             </button>
+                             {% endif %}
                             <button class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#modalCobrar"
                                     {% if pedido.total <= 0 and not detalles %}disabled{% endif %}>
                                 {% if pedido.estado == 'parcial' %}
@@ -229,7 +226,7 @@
                                 <i class="bi bi-cash"></i> Cobrar ${{ pedido.total|mil }}
                                 {% endif %}
                             </button>
-                            {% if pedido.estado != 'parcial' and pedido.total > 0 %}
+                            {% if pedido.total > 0 %}
                             <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalPagoParcial">
                                 <i class="bi bi-coin"></i> Pago parcial
                             </button>
@@ -258,7 +255,7 @@
                 <h5 class="modal-title"><i class="bi bi-cash"></i> Cobrar pedido</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" action="{% url 'cobrar_pedido' pedido.id %}">
+            <form id="formCobrar" method="post" action="{% url 'cobrar_pedido' pedido.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     {% with monto=pedido.saldo_pendiente|default:pedido.total %}
@@ -317,11 +314,15 @@
                 <h5 class="modal-title"><i class="bi bi-coin"></i> Pago parcial</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" action="{% url 'pago_parcial' pedido.id %}">
+            <form id="formPagoParcial" method="post" action="{% url 'pago_parcial' pedido.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="text-center mb-3">
+                        {% if pedido.estado == 'parcial' %}
+                        <h4>Saldo pendiente: <span class="text-primary">${{ pedido.saldo_pendiente|mil }}</span></h4>
+                        {% else %}
                         <h4>Total: <span class="text-primary">${{ pedido.total|mil }}</span></h4>
+                        {% endif %}
                         <p class="text-muted">¿Cuánto va a pagar el cliente?</p>
                     </div>
                     <div class="mb-3">
@@ -347,7 +348,9 @@
                     <div class="mb-3">
                         <label class="form-label">Monto a pagar</label>
                         <input type="number" name="monto_pago" class="form-control form-control-lg"
-                               step="1" min="1" max="{{ pedido.total|floatformat:0 }}" required>
+                               step="1" min="1"
+                               max="{% if pedido.estado == 'parcial' %}{{ pedido.saldo_pendiente|floatformat:0 }}{% else %}{{ pedido.total|floatformat:0 }}{% endif %}"
+                               required>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -411,6 +414,103 @@
             </div>
             <div class="modal-body text-center">
                 <img id="imgQRGrande" src="" alt="QR de consignación" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Solicitar en Caja -->
+<div class="modal fade" id="modalSolicitarCaja" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-send"></i> Solicitar en caja</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <!-- Buscador y productos -->
+                    <div class="col-md-7">
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="buscador-productos-caja" class="form-control"
+                                   placeholder="Buscar producto...">
+                        </div>
+                        <div style="max-height: 45vh; overflow-y: auto;" id="productos-caja-container">
+                            {% for categoria, productos in productos_por_categoria.items %}
+                            <div class="categoria-productos-caja mb-3" data-categoria="{{ categoria.nombre|lower }}">
+                                <h6 class="text-muted mb-2">
+                                    <i class="bi bi-folder"></i> {{ categoria.nombre }}
+                                </h6>
+                                <div class="row g-1">
+                                    {% for producto in productos %}
+                                    <div class="col-6 col-lg-4 producto-caja-wrapper"
+                                         data-nombre="{{ producto.nombre|lower }}"
+                                         data-codigo="{{ producto.codigo|lower }}">
+                                        <button class="btn btn-outline-primary btn-producto-caja w-100 text-start p-2"
+                                                data-producto-id="{{ producto.id }}"
+                                                data-nombre="{{ producto.nombre }}"
+                                                data-precio="{{ producto.precio_venta }}"
+                                                {% if producto.imagen %}data-imagen="{{ producto.imagen.url }}"{% endif %}>
+                                            <div class="d-flex align-items-center gap-2">
+                                                {% if producto.imagen %}
+                                                <div style="width:40px;height:40px;flex-shrink:0;overflow:hidden;background:#f8f9fa;display:flex;align-items:center;justify-content:center;border-radius:4px;">
+                                                    <img src="{{ producto.imagen.url }}" alt="{{ producto.nombre }}"
+                                                         style="max-width:100%;max-height:100%;object-fit:contain;">
+                                                </div>
+                                                {% else %}
+                                                <div style="width:40px;height:40px;flex-shrink:0;background:#f8f9fa;display:flex;align-items:center;justify-content:center;border-radius:4px;">
+                                                    <i class="bi bi-image text-muted"></i>
+                                                </div>
+                                                {% endif %}
+                                                <div class="min-width-0">
+                                                    <small class="d-block fw-bold text-break" style="font-size:0.8rem;">{{ producto.nombre }}</small>
+                                                    <span class="text-primary fw-bold" style="font-size:0.8rem;">${{ producto.precio_venta|mil }}</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <!-- Lista de productos seleccionados -->
+                    <div class="col-md-5">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-white py-2">
+                                <h6 class="mb-0"><i class="bi bi-cart-check"></i> Productos a enviar</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="lista-productos-caja" style="max-height: 38vh; overflow-y: auto;">
+                                    <div id="productos-caja-vacios" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-3"></i>
+                                        <p class="mb-0 small">Selecciona productos para enviar a caja</p>
+                                    </div>
+                                </div>
+                                <div id="resumen-caja" class="p-3 border-top d-none">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Productos:</span>
+                                        <span id="total-items-caja" class="fw-bold">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Subtotal:</span>
+                                        <span id="total-precio-caja" class="fw-bold text-primary">$0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success btn-lg" id="btn-enviar-caja" disabled>
+                    <i class="bi bi-send"></i> Enviar a caja
+                </button>
             </div>
         </div>
     </div>
@@ -571,6 +671,295 @@ $(document).ready(function() {
         $('#imgQRGrande').attr('src', $(this).attr('src'));
         var modalQR = new bootstrap.Modal(document.getElementById('modalAmpliarQR'));
         modalQR.show();
+    });
+
+    // ========== MODAL SOLICITAR EN CAJA ==========
+    var productosSeleccionadosCaja = [];
+    var contadorItemsCaja = 0;
+
+    function actualizarResumenCaja() {
+        var totalItems = productosSeleccionadosCaja.length;
+        var totalPrecio = 0;
+        productosSeleccionadosCaja.forEach(function(p) {
+            totalPrecio += p.subtotal;
+        });
+        $('#total-items-caja').text(totalItems);
+        $('#total-precio-caja').text('$' + totalPrecio.toLocaleString('es-CO'));
+        if (totalItems > 0) {
+            $('#resumen-caja').removeClass('d-none');
+            $('#productos-caja-vacios').addClass('d-none');
+            $('#btn-enviar-caja').prop('disabled', false);
+        } else {
+            $('#resumen-caja').addClass('d-none');
+            $('#productos-caja-vacios').removeClass('d-none');
+            $('#btn-enviar-caja').prop('disabled', true);
+        }
+    }
+
+    function renderListaCaja() {
+        var container = $('#lista-productos-caja');
+        container.find('.item-producto-caja').remove();
+        productosSeleccionadosCaja.forEach(function(p, idx) {
+            var html = '<div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom item-producto-caja" data-idx="' + idx + '">' +
+                '<div class="min-width-0 flex-grow-1">' +
+                    '<small class="fw-bold d-block text-break">' + p.nombre + '</small>' +
+                    '<small class="text-muted">$' + p.precio.toLocaleString('es-CO') + ' x ' + p.cantidad + '</small>' +
+                '</div>' +
+                '<div class="d-flex align-items-center gap-1 ms-2">' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary btn-resta-caja px-1">−</button>' +
+                    '<span class="fw-bold mx-1" style="min-width:20px;text-align:center;">' + p.cantidad + '</span>' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary btn-suma-caja px-1">+</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger ms-1 p-1 btn-eliminar-caja">' +
+                        '<i class="bi bi-x-lg"></i>' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
+            container.append(html);
+        });
+        actualizarResumenCaja();
+    }
+
+    // Buscar productos en el modal de caja
+    $('#buscador-productos-caja').on('input', function() {
+        var texto = $(this).val().toLowerCase();
+        $('.producto-caja-wrapper').each(function() {
+            var nombre = String($(this).data('nombre') || '').toLowerCase();
+            var codigo = String($(this).data('codigo') || '').toLowerCase();
+            if (nombre.includes(texto) || codigo.includes(texto)) {
+                $(this).show();
+                $(this).closest('.categoria-productos-caja').show();
+            } else {
+                $(this).hide();
+            }
+        });
+        $('.categoria-productos-caja').each(function() {
+            var visibles = $(this).find('.producto-caja-wrapper:visible').length;
+            if (visibles === 0) {
+                $(this).hide();
+            }
+        });
+    });
+
+    // Seleccionar producto en el modal de caja
+    $(document).on('click', '.btn-producto-caja', function() {
+        var id = $(this).data('producto-id');
+        var nombre = $(this).data('nombre');
+        var precio = parseFloat($(this).data('precio'));
+
+        Swal.fire({
+            title: nombre,
+            html: '<div class="mb-3"><label class="form-label">Cantidad</label>' +
+                  '<input id="swal-cantidad-caja" class="form-control form-control-lg" type="number" value="1" min="1" step="1"></div>',
+            didOpen: function() {
+                document.getElementById('swal-cantidad-caja').focus();
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#0d6efd',
+            preConfirm: function() {
+                return {
+                    cantidad: parseInt(document.getElementById('swal-cantidad-caja').value) || 1,
+                };
+            }
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                var cantidad = result.value.cantidad;
+                // Verificar si el producto ya esta en la lista
+                var existente = productosSeleccionadosCaja.find(function(p) {
+                    return p.producto_id === id;
+                });
+                if (existente) {
+                    existente.cantidad += cantidad;
+                    existente.subtotal = existente.cantidad * existente.precio;
+                } else {
+                    productosSeleccionadosCaja.push({
+                        idx: contadorItemsCaja++,
+                        producto_id: id,
+                        nombre: nombre,
+                        precio: precio,
+                        cantidad: cantidad,
+                        subtotal: precio * cantidad,
+                    });
+                }
+                renderListaCaja();
+                Swal.fire({
+                    icon: 'success',
+                    title: nombre + ' agregado',
+                    timer: 800,
+                    showConfirmButton: false,
+                });
+            }
+        });
+    });
+
+    // Sumar cantidad en el modal de caja
+    $(document).on('click', '.btn-suma-caja', function() {
+        var idx = $(this).closest('.item-producto-caja').data('idx');
+        productosSeleccionadosCaja[idx].cantidad += 1;
+        productosSeleccionadosCaja[idx].subtotal = productosSeleccionadosCaja[idx].cantidad * productosSeleccionadosCaja[idx].precio;
+        renderListaCaja();
+    });
+
+    // Restar cantidad en el modal de caja
+    $(document).on('click', '.btn-resta-caja', function() {
+        var idx = $(this).closest('.item-producto-caja').data('idx');
+        if (productosSeleccionadosCaja[idx].cantidad > 1) {
+            productosSeleccionadosCaja[idx].cantidad -= 1;
+            productosSeleccionadosCaja[idx].subtotal = productosSeleccionadosCaja[idx].cantidad * productosSeleccionadosCaja[idx].precio;
+        } else {
+            productosSeleccionadosCaja.splice(idx, 1);
+        }
+        renderListaCaja();
+    });
+
+    // Eliminar producto en el modal de caja
+    $(document).on('click', '.btn-eliminar-caja', function() {
+        var idx = $(this).closest('.item-producto-caja').data('idx');
+        productosSeleccionadosCaja.splice(idx, 1);
+        renderListaCaja();
+    });
+
+    // Enviar productos a caja
+    $('#btn-enviar-caja').on('click', function() {
+        if (productosSeleccionadosCaja.length === 0) return;
+
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Enviando...');
+
+        var productos = productosSeleccionadosCaja.map(function(p) {
+            return {
+                producto_id: p.producto_id,
+                cantidad: p.cantidad,
+            };
+        });
+
+        function getCookie(name) {
+            var cookieArr = document.cookie.split(';');
+            for (var i = 0; i < cookieArr.length; i++) {
+                var cookie = cookieArr[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    return decodeURIComponent(cookie.substring(name.length + 1));
+                }
+            }
+            return '';
+        }
+
+        $.ajax({
+            url: '{% url "solicitar_en_caja_con_productos" pedido.id %}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({productos: productos}),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            success: function(resp) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Enviado a caja',
+                    text: 'Productos agregados al pedido y enviados a caja.',
+                    timer: 1500,
+                    showConfirmButton: false,
+                }).then(function() {
+                    window.location.reload();
+                });
+            },
+            error: function(xhr) {
+                var msg = 'Error al enviar productos.';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    msg = xhr.responseJSON.error;
+                }
+                Swal.fire('Error', msg, 'error');
+                btn.prop('disabled', false).html('<i class="bi bi-send"></i> Enviar a caja');
+            }
+        });
+    });
+
+    // Limpiar al cerrar el modal
+    $('#modalSolicitarCaja').on('hidden.bs.modal', function() {
+        productosSeleccionadosCaja = [];
+        contadorItemsCaja = 0;
+        renderListaCaja();
+        $('#buscador-productos-caja').val('');
+        $('.producto-caja-wrapper').show();
+        $('.categoria-productos-caja').show();
+    });
+
+    // ── Cobrar con AJAX + chulito ──
+    $('#formCobrar').on('submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var btn = form.find('button[type="submit"]');
+        var urlRedir = '/mesas/pedido/{{ pedido.id }}/';
+        btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Procesando...');
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'POST',
+            data: form.serialize(),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(resp) {
+                bootstrap.Modal.getInstance(document.getElementById('modalCobrar')).hide();
+                if (resp.ok) {
+                    urlRedir = '/ventas/factura/' + resp.factura_id + '/';
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Cobro exitoso',
+                        text: 'Factura #' + resp.numero + ' | Cambio: $' + resp.cambio.toLocaleString('es-CO'),
+                        timer: 1800,
+                        showConfirmButton: false,
+                    }).then(function() {
+                        window.location.href = urlRedir;
+                    });
+                } else {
+                    Swal.fire('Error', resp.error || 'No se pudo procesar.', 'error');
+                    btn.prop('disabled', false).html('<i class="bi bi-check-lg"></i> Cobrar');
+                }
+            },
+            error: function(xhr) {
+                bootstrap.Modal.getInstance(document.getElementById('modalCobrar')).hide();
+                Swal.fire('Error', 'No se pudo procesar el cobro.', 'error');
+                btn.prop('disabled', false).html('<i class="bi bi-check-lg"></i> Cobrar');
+            }
+        });
+    });
+
+    // ── Pago parcial con AJAX + chulito ──
+    $('#formPagoParcial').on('submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var btn = form.find('button[type="submit"]');
+        btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Procesando...');
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'POST',
+            data: form.serialize(),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(resp) {
+                bootstrap.Modal.getInstance(document.getElementById('modalPagoParcial')).hide();
+                if (resp.ok) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Pago parcial registrado',
+                        text: 'Monto: $' + resp.monto.toLocaleString('es-CO') + ' | Saldo: $' + resp.saldo.toLocaleString('es-CO'),
+                        timer: 1800,
+                        showConfirmButton: false,
+                    }).then(function() {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', resp.error || 'No se pudo registrar.', 'error');
+                    btn.prop('disabled', false).html('<i class="bi bi-coin"></i> Registrar pago parcial');
+                }
+            },
+            error: function(xhr) {
+                bootstrap.Modal.getInstance(document.getElementById('modalPagoParcial')).hide();
+                Swal.fire('Error', 'No se pudo registrar el pago.', 'error');
+                btn.prop('disabled', false).html('<i class="bi bi-coin"></i> Registrar pago parcial');
+            }
+        });
     });
 });
 </script>

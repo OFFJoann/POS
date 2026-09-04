@@ -124,6 +124,11 @@ class Pedido(models.Model):
     )
     fecha_apertura = models.DateTimeField('Fecha apertura', auto_now_add=True)
     fecha_cierre = models.DateTimeField('Fecha cierre', null=True, blank=True)
+    sesion_inicio = models.DateTimeField(
+        'Inicio de sesión', null=True, blank=True,
+        help_text='Última vez que el mesero entró a la mesa; '
+                  'Solicitar en caja solo envía productos desde esta fecha.'
+    )
     created_at = models.DateTimeField('Creado', auto_now_add=True)
     updated_at = models.DateTimeField('Actualizado', auto_now=True)
 
@@ -147,7 +152,7 @@ class Pedido(models.Model):
         self.total = self.subtotal - self.descuento
         if self.total < 0:
             self.total = 0
-        self.save()
+        self.save(update_fields=['subtotal', 'total', 'descuento'])
 
 
 class DetallePedido(models.Model):

@@ -12,4 +12,6 @@ urlpatterns = [
     path('usuarios/crear/', views.crear_vendedor, name='crear_vendedor'),
     path('usuarios/<int:pk>/editar/', views.editar_vendedor, name='editar_vendedor'),
     path('usuarios/<int:pk>/eliminar/', views.eliminar_vendedor, name='eliminar_vendedor'),
+    path('tour/', views.tour_capacitacion, name='tour_capacitacion'),
+    path('tour/completar/', views.completar_tour, name='completar_tour'),
 ]

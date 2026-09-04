@@ -1,0 +1,157 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Métricas por hora - Reportes{% endblock %}
+
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .hora-bar { font-size: 0.6rem; height: 120px !important; }
+    .hora-bar .barra { min-width: 8px; }
+    .hora-bar .hora-label { font-size: 0.5rem; }
+    .hora-bar .valor-label { font-size: 0.5rem; }
+    .resumen-card { padding: 0.5rem !important; }
+    .resumen-card .resumen-valor { font-size: 1.1rem !important; }
+    .resumen-card .resumen-label { font-size: 0.7rem !important; }
+    .metrica-table { font-size: 0.75rem; }
+    .metrica-table th, .metrica-table td { padding: 0.25rem 0.3rem !important; }
+    .chart-legend small { font-size: 0.6rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 py-sm-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-graph-up"></i> Métricas por hora</h5>
+        <a href="{% url 'dashboard_reportes' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+                <label class="small text-muted mb-0">Meses:</label>
+                <select name="meses" class="form-select form-select-sm" style="width: 160px;" onchange="this.form.submit()">
+                    <option value="1" {% if meses_seleccionados == 1 %}selected{% endif %}>Último mes</option>
+                    <option value="3" {% if meses_seleccionados == 3 %}selected{% endif %}>Últimos 3 meses</option>
+                    <option value="6" {% if meses_seleccionados == 6 %}selected{% endif %}>Últimos 6 meses</option>
+                    <option value="12" {% if meses_seleccionados == 12 %}selected{% endif %}>Último año</option>
+                </select>
+                <span class="small text-muted ms-auto">
+                    Basado en {{ conteo_cierres }} cierre{{ conteo_cierres|pluralize }}
+                </span>
+            </form>
+        </div>
+    </div>
+
+    {% if hora_pico and hora_pico.promedio > 0 %}
+    <!-- Resumen -->
+    <div class="row g-2 mb-3">
+        <div class="col-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-2 py-sm-3 resumen-card">
+                    <small class="text-muted d-block resumen-label">Hora pico</small>
+                    <span class="fw-bold resumen-valor text-primary">{{ hora_pico.hora }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-2 py-sm-3 resumen-card">
+                    <small class="text-muted d-block resumen-label">Promedio</small>
+                    <span class="fw-bold resumen-valor text-success">${{ hora_pico.promedio|mil }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-2 py-sm-3 resumen-card">
+                    <small class="text-muted d-block resumen-label">Cierres</small>
+                    <span class="fw-bold resumen-valor">{{ conteo_cierres }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grafico de barras vertical -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-2">
+            <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Promedio de ventas por hora</h6>
+        </div>
+        <div class="card-body">
+            <div class="d-flex align-items-end gap-1 hora-bar" style="height: 160px;">
+                {% for h in horas %}
+                <div class="flex-fill d-flex flex-column align-items-center barra" style="min-width: 0;">
+                    {% if h.promedio > 0 %}
+                    <small class="valor-label text-muted mb-1 d-none d-md-block">${{ h.promedio|mil }}</small>
+                    {% endif %}
+                    <div class="w-100 rounded-top"
+                         style="height: {% if h.porcentaje > 0 %}{{ h.porcentaje }}%{% else %}2px{% endif %}; min-height: {% if h.promedio > 0 %}4px{% else %}1px{% endif %}; background: {% if h.porcentaje > 75 %}#198754{% elif h.porcentaje > 40 %}#ffc107{% elif h.porcentaje > 0 %}#0d6efd{% else %}#dee2e6{% endif %};"
+                         title="{{ h.hora }}: Promedio ${{ h.promedio|mil }}"></div>
+                    <small class="hora-label text-muted mt-1">{{ h.hora }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="d-flex justify-content-between mt-2 chart-legend">
+                <small class="text-muted">
+                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#198754;"></span> <span class="d-none d-sm-inline">Pico (&gt;75%)</span><span class="d-sm-none">Alto</span>
+                    <span class="d-inline-block rounded-circle ms-1 ms-sm-2" style="width:8px;height:8px;background:#ffc107;"></span> <span class="d-none d-sm-inline">Medio (40-75%)</span><span class="d-sm-none">Med</span>
+                    <span class="d-inline-block rounded-circle ms-1 ms-sm-2" style="width:8px;height:8px;background:#0d6efd;"></span> <span class="d-none d-sm-inline">Bajo (1-40%)</span><span class="d-sm-none">Bajo</span>
+                    <span class="d-inline-block rounded-circle ms-1 ms-sm-2" style="width:8px;height:8px;background:#dee2e6;"></span> <span class="d-none d-sm-inline">Sin ventas</span>
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla detallada -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2">
+            <h6 class="mb-0"><i class="bi bi-table"></i> Detalle por hora</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 metrica-table" style="table-layout:fixed; width:100%;">
+                    <colgroup>
+                        <col style="width:18%">
+                        <col style="width:32%">
+                        <col style="width:25%">
+                        <col style="width:25%">
+                    </colgroup>
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-2 ps-sm-3">Hora</th>
+                            <th>Gráfico</th>
+                            <th class="text-end">Prom.</th>
+                            <th class="text-end pe-2 pe-sm-3">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in horas %}
+                        <tr{% if h.porcentaje > 75 %} class="table-success"{% endif %}>
+                            <td class="ps-2 ps-sm-3 fw-bold">{{ h.hora }}</td>
+                            <td>
+                                <div class="rounded" style="height:10px; width:{{ h.porcentaje }}%; min-width:{% if h.promedio > 0 %}3px{% else %}0{% endif %}; background:{% if h.porcentaje > 75 %}#198754{% elif h.porcentaje > 40 %}#ffc107{% elif h.porcentaje > 0 %}#0d6efd{% else %}#dee2e6{% endif %};"></div>
+                            </td>
+                            <td class="text-end">${{ h.promedio|mil }}</td>
+                            <td class="text-end pe-2 pe-sm-3">${{ h.total_acumulado|mil }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2 mb-0">No hay datos de ventas para el período seleccionado.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

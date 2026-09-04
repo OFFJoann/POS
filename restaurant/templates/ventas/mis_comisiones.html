@@ -1,0 +1,128 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Mis comisiones{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 py-sm-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-cash-coin"></i> Mis comisiones</h5>
+        <a href="{% url 'vista_mesas' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    {% if caja %}
+    <!-- Info de caja -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted">
+                    <i class="bi bi-clock"></i> Caja abierta desde {{ caja.fecha_apertura|date:'d/m/Y H:i' }}
+                </small>
+                <small class="text-muted">
+                    Total comisiones: <span class="fw-bold text-success">${{ total_comisiones|mil }}</span>
+                </small>
+            </div>
+        </div>
+    </div>
+
+    {% if mi_comision %}
+    <!-- Resumen -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <small class="text-muted d-block">Mis comisiones</small>
+                    <span class="fw-bold fs-4 text-success">${{ mi_comision.total|mil }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <small class="text-muted d-block">Productos vendidos</small>
+                    <span class="fw-bold fs-4">{{ mi_comision.items|floatformat:0 }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <small class="text-muted d-block">Mi participación</small>
+                    <span class="fw-bold fs-4 text-primary">
+                        {% if total_comisiones > 0 %}
+                            {{ mi_comision.total|floatformat:0 }} / {{ total_comisiones|floatformat:0 }}
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalle por producto -->
+    {% if mi_comision.lineas %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2">
+            <h6 class="mb-0"><i class="bi bi-list-check"></i> Detalle de comisiones</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" style="table-layout:fixed; width:100%;">
+                    <colgroup>
+                        <col style="width:50%">
+                        <col style="width:20%">
+                        <col style="width:30%">
+                    </colgroup>
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Producto</th>
+                            <th class="text-center">Cant</th>
+                            <th class="text-end pe-3">Comisión</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in mi_comision.lineas %}
+                        <tr>
+                            <td class="ps-3">{{ l.producto }}</td>
+                            <td class="text-center">{{ l.cantidad|floatformat:0 }}</td>
+                            <td class="text-end pe-3 fw-bold text-success">${{ l.comision|mil }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td class="ps-3 fw-bold">Total</td>
+                            <td class="text-center fw-bold">{{ mi_comision.items|floatformat:0 }}</td>
+                            <td class="text-end pe-3 fw-bold text-success">${{ mi_comision.total|mil }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2 mb-0">No hay comisiones registradas en esta caja.</p>
+            <small>Las comisiones aparecen cuando se registran ventas.</small>
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-cash-stack fs-1"></i>
+            <p class="mt-2 mb-0">No hay caja abierta actualmente.</p>
+            <small>Las comisiones se muestran cuando hay una caja activa.</small>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

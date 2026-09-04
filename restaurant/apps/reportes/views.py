@@ -216,3 +216,73 @@ def datos_dashboard_api(request):
             datos[key] = list(value)
 
     return JsonResponse(datos)
+
+
+@login_required
+@permiso_required('reportes')
+def metricas_por_hora(request):
+    """
+    Métrica de ventas promedio por hora.
+    Agrega los datos de todos los cierres de caja para mostrar
+    a qué horas se vende más el negocio.
+    """
+    from collections import defaultdict
+    from django.db.models import Sum
+    from django.db.models.functions import ExtractHour
+    from apps.caja.models import CierreCaja
+
+    meses = int(request.GET.get('meses', 3))
+
+    cierres = CierreCaja.objects.select_related('caja').order_by('-fecha_cierre')
+
+    # Acumular ventas por hora de todos los cierres
+    ventas_por_hora_total = defaultdict(float)
+    conteo_cierres = 0
+    cierres_con_datos = []
+
+    for c in cierres[:meses * 30]:
+        pagos = Pago.objects.filter(
+            created_at__gte=c.caja.fecha_apertura,
+            created_at__lte=c.fecha_cierre,
+        )
+        hora_data = (
+            pagos.annotate(hora=ExtractHour('created_at'))
+            .values('hora')
+            .annotate(total=Sum('monto'))
+        )
+        if hora_data:
+            conteo_cierres += 1
+            cierres_con_datos.append({
+                'fecha': c.fecha_cierre,
+                'total': float(c.total_ventas),
+            })
+            for item in hora_data:
+                ventas_por_hora_total[item['hora']] += float(item['total'])
+
+    # Promediar por hora
+    horas_promedio = []
+    max_venta = 0
+    for h in range(24):
+        promedio = ventas_por_hora_total[h] / conteo_cierres if conteo_cierres > 0 else 0
+        if promedio > max_venta:
+            max_venta = promedio
+        horas_promedio.append({
+            'hora': str(h),
+            'promedio': round(promedio, 0),
+            'total_acumulado': round(ventas_por_hora_total[h], 0),
+        })
+
+    # Calcular porcentaje para el grafico
+    for h in horas_promedio:
+        h['porcentaje'] = round((h['promedio'] / max_venta * 100) if max_venta > 0 else 0, 1)
+
+    # Hora pico
+    hora_pico = max(horas_promedio, key=lambda x: x['promedio']) if horas_promedio else None
+
+    return render(request, 'reportes/metricas_por_hora.html', {
+        'horas': horas_promedio,
+        'conteo_cierres': conteo_cierres,
+        'hora_pico': hora_pico,
+        'meses_seleccionados': meses,
+        'cierres_con_datos': cierres_con_datos,
+    })

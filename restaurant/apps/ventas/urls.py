@@ -9,4 +9,5 @@ urlpatterns = [
     path('factura/<int:factura_id>/', views.ver_factura, name='ver_factura'),
     path('factura/<int:factura_id>/pdf/', views.factura_pdf, name='factura_pdf'),
     path('buscar/', views.buscar_facturas, name='buscar_facturas'),
+    path('mis-comisiones/', views.mis_comisiones, name='mis_comisiones'),
 ]

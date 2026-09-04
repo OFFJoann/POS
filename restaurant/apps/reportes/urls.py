@@ -13,4 +13,5 @@ urlpatterns = [
     path('productos/exportar/excel/', views.exportar_productos_excel, name='exportar_productos_excel'),
     path('mesero/<int:vendedor_id>/', views.reporte_por_mesero, name='reporte_por_mesero'),
     path('api/datos/', views.datos_dashboard_api, name='datos_dashboard_api'),
+    path('metricas-por-hora/', views.metricas_por_hora, name='metricas_por_hora'),
 ]

@@ -135,3 +135,38 @@ def buscar_facturas(request):
     } for f in facturas[:50]]
 
     return JsonResponse({'facturas': data})
+
+
+@login_required
+def mis_comisiones(request):
+    """
+    Muestra las comisiones del usuario actual en la caja activa.
+    """
+    from apps.caja.models import AperturaCaja
+    from apps.ventas.services import comisiones_por_vendedor
+
+    vendedor = getattr(request.user, 'vendedor', None)
+    if not vendedor:
+        messages.error(request, 'No tienes perfil de vendedor.')
+        return redirect('vista_mesas')
+
+    caja = AperturaCaja.objects.filter(activa=True).first()
+    comisiones = []
+    total_comisiones = 0
+    mi_comision = None
+
+    if caja:
+        comisiones = comisiones_por_vendedor(
+            caja.fecha_apertura, caja._fecha_fin
+        )
+        total_comisiones = sum((c['total'] or 0) for c in comisiones)
+        for c in comisiones:
+            if c['id'] == vendedor.id:
+                mi_comision = c
+                break
+
+    return render(request, 'ventas/mis_comisiones.html', {
+        'mi_comision': mi_comision,
+        'total_comisiones': total_comisiones,
+        'caja': caja,
+    })

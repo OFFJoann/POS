@@ -12,6 +12,8 @@ from django.views.generic import FormView
 from django.urls import reverse_lazy
 from django import forms
 from django.db.models import Sum, F
+from django.http import JsonResponse
+import json
 from .models import Vendedor
 from .forms import VendedorForm
 from .decorators import admin_required
@@ -52,6 +54,8 @@ class AccederView(FormView):
         if user is not None:
             login(self.request, user)
             messages.success(self.request, f'Bienvenido {user.vendedor.nombre}!')
+            if not user.vendedor.tour_completado:
+                return redirect('tour_capacitacion')
             return super().form_valid(form)
         messages.error(self.request, 'Cédula no encontrada o usuario inactivo.')
         return self.form_invalid(form)
@@ -59,6 +63,8 @@ class AccederView(FormView):
     def get(self, request, *args, **kwargs):
         """Redirige al dashboard si ya está autenticado."""
         if request.user.is_authenticated:
+            if hasattr(request.user, 'vendedor') and not request.user.vendedor.tour_completado:
+                return redirect('tour_capacitacion')
             return redirect('dashboard')
         return super().get(request, *args, **kwargs)
 
@@ -163,3 +169,31 @@ def eliminar_vendedor(request, pk):
     return render(request, 'usuarios/confirmar_eliminar.html', {
         'vendedor': vendedor
     })
+
+
+@login_required
+def tour_capacitacion(request):
+    """Muestra el tour de capacitación al usuario."""
+    vendedor = getattr(request.user, 'vendedor', None)
+    if not vendedor:
+        return redirect('acceder')
+    
+    permisos = [codigo for codigo in Vendedor.PERMISOS if vendedor.puede(codigo)]
+    
+    return render(request, 'usuarios/tour_capacitacion.html', {
+        'vendedor': vendedor,
+        'permisos_json': json.dumps(permisos),
+    })
+
+
+@login_required
+def completar_tour(request):
+    """Marca el tour como completado."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+    vendedor = getattr(request.user, 'vendedor', None)
+    if not vendedor:
+        return JsonResponse({'ok': False}, status=400)
+    vendedor.tour_completado = True
+    vendedor.save(update_fields=['tour_completado'])
+    return JsonResponse({'ok': True})

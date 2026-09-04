@@ -33,16 +33,25 @@ def permiso_required(codigo):
         @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
             if not request.user.is_authenticated:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'error': 'No autenticado'}, status=403)
                 return redirect('acceder')
             if getattr(request.user, 'is_staff', False) or \
                     getattr(request.user, 'is_superuser', False):
                 return view_func(request, *args, **kwargs)
             vendedor = getattr(request.user, 'vendedor', None)
             if not vendedor or not vendedor.activo:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'error': 'No tienes permiso para realizar esta acción.'}, status=403)
                 messages.error(request, 'No tienes permiso para realizar esta acción.')
                 return redirect('dashboard')
             if vendedor.puede(codigo):
                 return view_func(request, *args, **kwargs)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                from django.http import JsonResponse
+                return JsonResponse({'error': 'No tienes permiso para realizar esta acción.'}, status=403)
             messages.error(request, 'No tienes permiso para realizar esta acción.')
             return redirect('dashboard')
         return _wrapped_view

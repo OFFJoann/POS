@@ -3,112 +3,310 @@
 
 {% block title %}Consolidados - El Choli{% endblock %}
 
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .cierre-resumen { gap: 0.5rem !important; }
+    .cierre-resumen .text-end { min-width: 0; }
+    .cierre-resumen small { font-size: 0.65rem; }
+    .cierre-resumen span { font-size: 0.85rem !important; }
+    .cierre-resumen .fs-5 { font-size: 0.9rem !important; }
+    .consol-table { font-size: 0.8rem; }
+    .consol-table th, .consol-table td { padding: 0.3rem 0.4rem !important; }
+    .consol-table .badge { font-size: 0.65rem; }
+    .consol-table .table-title { font-size: 0.9rem; }
+    .card-header h5 { font-size: 1rem; }
+    .card-header h5 small { font-size: 0.75rem; }
+    .producto-detalle { font-size: 0.78rem; }
+    .producto-detalle td { padding: 0.25rem 0.35rem !important; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3">
+<div class="container-fluid py-2 py-sm-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3><i class="bi bi-clock-history"></i> Consolidados de caja</h3>
-        <a href="{% url 'estado_caja' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver a caja
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Consolidados</h5>
+        <a href="{% url 'estado_caja' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
         </a>
     </div>
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            {% if puede_ver_totales %}
-                            <th>Ventas efectivo</th>
-                            <th>Ventas transferencia</th>
-                            <th>Total ventas</th>
-                            <th>Egresos</th>
-                            <th>Comisiones</th>
-                            <th>Dinero esperado</th>
-                            <th>Efectivo contado</th>
-                            <th>Diferencia</th>
-                            {% else %}
-                            <th colspan="8" class="text-center">Detalles de caja ocultos (sin permiso)</th>
-                            {% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in cierres %}
-                        <tr class="table-light" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#detalle-{{ forloop.counter }}">
-                            <td>{{ c.fecha_cierre|date:'d/m/Y' }}</td>
-                            {% if puede_ver_totales %}
-                            <td class="text-success">${{ c.total_ventas_efectivo|mil }}</td>
-                            <td class="text-info">${{ c.total_ventas_transferencia|mil }}</td>
-                            <td class="fw-bold">${{ c.total_ventas|mil }}</td>
-                            <td class="text-danger">-${{ c.total_egresos|mil }}</td>
-                            <td class="text-success">${{ c.total_comisiones|mil }}</td>
-                            <td class="fw-bold text-primary">${{ c.dinero_esperado|mil }}</td>
-                            <td class="fw-bold">${{ c.efectivo_conteo|mil }}</td>
-                            <td class="{% if c.diferencia > 0 %}text-success{% elif c.diferencia < 0 %}text-danger{% else %}text-muted{% endif %}">
-                                {% if c.diferencia > 0 %}
-                                +${{ c.diferencia|mil }}
-                                {% elif c.diferencia < 0 %}
-                                -${{ c.diferencia|mil }}
-                                {% else %}
-                                $0
-                                {% endif %}
-                            </td>
-                            {% else %}
-                            <td colspan="8" class="text-center text-muted">•••</td>
-                            {% endif %}
-                        </tr>
-                        <tr class="collapse" id="detalle-{{ forloop.counter }}">
-                            <td colspan="9" class="p-0">
-                                {% if puede_ver_totales %}
-                                <div class="bg-light p-3">
-                                    <h6 class="mb-2"><i class="bi bi-receipt"></i> Facturas del día</h6>
-                                    {% for f in c.facturas_del_dia %}
-                                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
-                                        <span>
-                                            <a href="{% url 'ver_factura' f.id %}">Factura #{{ f.numero }}</a>
-                                            <small class="text-muted ms-2">{{ f.get_metodo_pago_display }}</small>
-                                        </span>
-                                        <span class="fw-bold">${{ f.total|mil }}</span>
-                                    </div>
-                                    {% empty %}
-                                    <p class="text-muted mb-0">Sin facturas registradas.</p>
-                                    {% endfor %}
-                                    {% if c.comisiones_detalle %}
-                                    <h6 class="mb-2 mt-3"><i class="bi bi-cash-coin"></i> Comisiones por vendedor</h6>
-                                    {% for d in c.comisiones_detalle %}
-                                    <div class="py-1 border-bottom">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>{{ d.nombre }} {{ d.apellidos }}</span>
-                                            <span class="fw-bold text-success">${{ d.total|mil }}</span>
-                                        </div>
-                                        <ul class="small text-muted mb-0">
-                                            {% for l in d.lineas %}
-                                            <li>{{ l.producto }} x{{ l.cantidad }} — ${{ l.comision|mil }}</li>
+    {% for item in datos_cierres %}
+    {% with c=item.cierre uid=forloop.counter %}
+    <div class="card border-0 shadow-sm mb-3">
+        <!-- Encabezado del cierre -->
+        <div class="card-header bg-white py-2 py-sm-3" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#cierre-{{ uid }}">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="min-width-0">
+                    <h5 class="mb-0 text-truncate">
+                        <i class="bi bi-calendar-check text-primary"></i>
+                        {{ c.fecha_cierre|date:'d/m/Y' }}
+                        <small class="text-muted d-none d-sm-inline">— {{ item.total_facturas }} factura{{ item.total_facturas|pluralize }}</small>
+                    </h5>
+                </div>
+                {% if puede_ver_totales %}
+                <div class="d-flex align-items-center cierre-resumen gap-3 gap-sm-4 flex-shrink-0">
+                    <div class="text-end d-none d-sm-block">
+                        <small class="text-muted d-block">Ventas</small>
+                        <span class="fw-bold text-primary">${{ c.total_ventas|mil }}</span>
+                    </div>
+                    <div class="text-end d-none d-md-block">
+                        <small class="text-muted d-block">Egresos</small>
+                        <span class="text-danger">-${{ c.total_egresos|mil }}</span>
+                    </div>
+                    <div class="text-end d-none d-lg-block">
+                        <small class="text-muted d-block">Comisiones</small>
+                        <span class="text-success">${{ c.total_comisiones|mil }}</span>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">Total</small>
+                        <span class="fw-bold fs-5 text-primary">${{ c.total_ventas|mil }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <span class="text-muted">•••</span>
+                {% endif %}
+                <i class="bi bi-chevron-down ms-2 flex-shrink-0"></i>
+            </div>
+        </div>
+
+        <!-- Contenido colapsable -->
+        <div class="collapse" id="cierre-{{ uid }}">
+            <div class="card-body p-0">
+                {% if puede_ver_totales %}
+
+                <!-- Resumen rapido en movil (solo visible en movil) -->
+                {% if puede_ver_totales %}
+                <div class="d-sm-none p-3 border-bottom bg-light">
+                    <div class="row text-center small">
+                        <div class="col-4">
+                            <div class="text-muted">Ventas</div>
+                            <div class="fw-bold text-primary">${{ c.total_ventas|mil }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted">Egresos</div>
+                            <div class="text-danger">-${{ c.total_egresos|mil }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted">Comisiones</div>
+                            <div class="text-success">${{ c.total_comisiones|mil }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Facturas por mesa -->
+                <div class="p-2 p-sm-3">
+                    <h6 class="text-muted mb-2 mb-sm-3 small">
+                        <i class="bi bi-table"></i> Facturas por mesa
+                    </h6>
+                    {% for mesa in item.mesas %}
+                    <div class="card border mb-2">
+                        <div class="card-header bg-light py-1 py-sm-2 d-flex justify-content-between align-items-center"
+                             style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#mesa-{{ uid }}-{{ mesa.numero }}">
+                            <span class="fw-bold small">
+                                <i class="bi bi-grid-3x3-gap"></i> Mesa {{ mesa.numero }}
+                                <span class="text-muted d-none d-sm-inline">— {{ mesa.facturas|length }} factura{{ mesa.facturas|length|pluralize }}</span>
+                            </span>
+                            <span class="fw-bold text-primary small">${{ mesa.total|mil }}</span>
+                        </div>
+                        <div class="collapse show" id="mesa-{{ uid }}-{{ mesa.numero }}">
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0 consol-table" style="table-layout:fixed; width:100%;">
+                                        <colgroup>
+                                            <col style="width:32%">
+                                            <col style="width:23%">
+                                            <col style="width:22%">
+                                            <col style="width:23%">
+                                        </colgroup>
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="ps-2">Factura</th>
+                                                <th>Mesero</th>
+                                                <th>Método</th>
+                                                <th class="text-end pe-2">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for f in mesa.facturas %}
+                                            <tr style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#factura-{{ uid }}-{{ f.id }}">
+                                                <td class="ps-2 text-truncate">
+                                                    <i class="bi bi-chevron-down small text-muted me-1"></i>
+                                                    #{{ f.numero }}
+                                                    <small class="text-muted ms-1 d-none d-sm-inline">{{ f.created_at|date:'H:i' }}</small>
+                                                </td>
+                                                <td class="text-truncate">{{ f.mesero }}</td>
+                                                <td>
+                                                    {% if f.metodo_pago == 'efectivo' %}
+                                                    <span class="badge bg-success">Efectivo</span>
+                                                    {% elif f.metodo_pago == 'transferencia' %}
+                                                    <span class="badge bg-info">Transf.</span>
+                                                    {% else %}
+                                                    <span class="badge bg-secondary">Cortesía</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end pe-2 fw-bold">${{ f.total|mil }}</td>
+                                            </tr>
+                                            <!-- Detalle de productos de la factura -->
+                                            <tr class="collapse" id="factura-{{ uid }}-{{ f.id }}">
+                                                <td colspan="4" class="p-0">
+                                                    <div class="bg-light p-2">
+                                                        <table class="table table-sm mb-0 consol-table producto-detalle" style="table-layout:fixed; width:100%;">
+                                                            <colgroup>
+                                                                <col style="width:45%">
+                                                                <col style="width:15%">
+                                                                <col style="width:20%">
+                                                                <col style="width:20%">
+                                                            </colgroup>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Producto</th>
+                                                                    <th class="text-center">Cant</th>
+                                                                    <th class="text-end">Precio</th>
+                                                                    <th class="text-end">Subtot.</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for d in f.pedido.detalles.all %}
+                                                                <tr>
+                                                                    <td class="text-truncate">
+                                                                        {{ d.producto.nombre }}
+                                                                        {% if d.es_cortesia %}
+                                                                        <span class="badge bg-success ms-1">C</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td class="text-center">{{ d.cantidad|floatformat:0 }}</td>
+                                                                    <td class="text-end">${{ d.precio_unitario|mil }}</td>
+                                                                    <td class="text-end fw-bold">${{ d.subtotal|mil }}</td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
                                             {% endfor %}
-                                        </ul>
-                                    </div>
-                                    {% endfor %}
-                                    {% endif %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                {% else %}
-                                <div class="bg-light p-3 text-muted">
-                                    Información de caja no disponible para tu perfil.
-                                </div>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                No hay cierres registrados aún.
-                            </td>
-                        </tr>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0 small">Sin facturas registradas.</p>
+                    {% endfor %}
+                </div>
+
+                <!-- Resumen general de productos vendidos -->
+                {% if item.productos %}
+                <div class="border-top p-2 p-sm-3">
+                    <h6 class="text-muted mb-2 mb-sm-3 small">
+                        <i class="bi bi-box-seam"></i> Resumen de productos vendidos
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 consol-table" style="table-layout:fixed; width:100%;">
+                            <colgroup>
+                                <col style="width:50%">
+                                <col style="width:22%">
+                                <col style="width:28%">
+                            </colgroup>
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-2">Producto</th>
+                                    <th class="text-center">Cant</th>
+                                    <th class="text-end pe-2">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in item.productos %}
+                                <tr>
+                                    <td class="ps-2 text-truncate">{{ p.nombre }}</td>
+                                    <td class="text-center fw-bold">{{ p.cantidad|floatformat:0 }}</td>
+                                    <td class="text-end pe-2">${{ p.total|mil }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Grafico de ventas por hora -->
+                {% if item.grafico_horas %}
+                <div class="border-top p-2 p-sm-3">
+                    <h6 class="text-muted mb-2 mb-sm-3 small">
+                        <i class="bi bi-graph-up"></i> Ventas por hora
+                    </h6>
+                    <div class="d-flex align-items-end gap-1" style="height: 100px;">
+                        {% for h in item.grafico_horas %}
+                        <div class="flex-fill d-flex flex-column align-items-center" style="min-width: 0;">
+                            <div class="w-100 rounded-top"
+                                 style="height: {{ h.porcentaje }}%; min-height: {% if h.venta > 0 %}4px{% else %}1px{% endif %}; background: {% if h.porcentaje > 75 %}#198754{% elif h.porcentaje > 40 %}#ffc107{% else %}#0d6efd{% endif %};"
+                                 title="{{ h.hora }}: ${{ h.venta|floatformat:0 }}"></div>
+                            <small class="text-muted mt-1" style="font-size:0.6rem;">{{ h.hora }}</small>
+                        </div>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted" style="font-size:0.65rem;">
+                            <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#198754;"></span> Pico
+                            <span class="d-inline-block rounded-circle ms-2" style="width:8px;height:8px;background:#ffc107;"></span> Medio
+                            <span class="d-inline-block rounded-circle ms-2" style="width:8px;height:8px;background:#0d6efd;"></span> Bajo
+                        </small>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Comisiones por vendedor (colapsable) -->
+                {% if c.comisiones_detalle %}
+                <div class="border-top p-2 p-sm-3">
+                    <h6 class="text-muted mb-2 mb-sm-3 small">
+                        <i class="bi bi-cash-coin"></i> Comisiones
+                    </h6>
+                    {% for d in c.comisiones_detalle %}
+                    <div class="card border mb-2">
+                        <div class="card-header bg-light py-1 py-sm-2 d-flex justify-content-between align-items-center"
+                             style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#comision-{{ uid }}-{{ d.id }}">
+                            <span class="fw-bold small">
+                                <i class="bi bi-person"></i> {{ d.nombre }} {{ d.apellidos }}
+                            </span>
+                            <span class="fw-bold text-success small">${{ d.total|mil }}</span>
+                        </div>
+                        <div class="collapse" id="comision-{{ uid }}-{{ d.id }}">
+                            <div class="card-body py-2">
+                                <ul class="list-unstyled mb-0 small">
+                                    {% for l in d.lineas %}
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span class="text-truncate me-2">{{ l.producto }} <span class="text-muted">x{{ l.cantidad|floatformat:0 }}</span></span>
+                                        <span class="flex-shrink-0">${{ l.comision|mil }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="p-3 text-muted text-center small">
+                    Información de caja no disponible para tu perfil.
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
+    {% endwith %}
+    {% empty %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2 mb-0">No hay cierres registrados aún.</p>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% endblock %}
