@@ -39,22 +39,12 @@ def estado_caja(request):
     if caja_activa:
         egresos = caja_activa.egresos.select_related('usuario', 'categoria').all()
         from apps.ventas.services import comisiones_por_vendedor
-        from apps.mesas.models import Pedido
-        from django.db.models import Sum, Case, When, F
         comisiones = comisiones_por_vendedor(
             caja_activa.fecha_apertura, caja_activa._fecha_fin
         )
         total_comisiones = sum((c['total'] or 0) for c in comisiones)
-        falta_por_cobrar = Pedido.objects.filter(
-            estado__in=['activo', 'parcial']
-        ).aggregate(
-            total=Sum(
-                Case(
-                    When(estado='parcial', then=F('saldo_pendiente')),
-                    default=F('total'),
-                )
-            )
-        )['total'] or 0
+        from apps.caja.services import calcular_falta_por_cobrar
+        falta_por_cobrar = calcular_falta_por_cobrar()
 
     ya_cobrado = caja_activa.total_ventas if caja_activa else 0
     total_proyectado = ya_cobrado + falta_por_cobrar
@@ -123,20 +113,11 @@ def cerrar_caja(request):
         return redirect('estado_caja')
 
     from apps.ventas.services import comisiones_por_vendedor
-    from apps.mesas.models import Pedido, SolicitudPedido
-    from django.db.models import Sum, Case, When, F
+    from apps.mesas.models import SolicitudPedido
+    from apps.caja.services import calcular_falta_por_cobrar
     comisiones = comisiones_por_vendedor(caja.fecha_apertura, caja._fecha_fin)
     total_comisiones = sum((c['total'] or 0) for c in comisiones)
-    falta_por_cobrar = Pedido.objects.filter(
-        estado__in=['activo', 'parcial']
-    ).aggregate(
-        total=Sum(
-            Case(
-                When(estado='parcial', then=F('saldo_pendiente')),
-                default=F('total'),
-            )
-        )
-    )['total'] or 0
+    falta_por_cobrar = calcular_falta_por_cobrar()
     ya_cobrado = caja.total_ventas
     total_proyectado = ya_cobrado + falta_por_cobrar
     comisiones_detalle = [

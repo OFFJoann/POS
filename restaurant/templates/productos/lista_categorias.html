@@ -17,6 +17,7 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th style="width:90px">Orden</th>
                             <th>Nombre</th>
                             <th>Descripción</th>
                             <th>Activo</th>
@@ -26,6 +27,20 @@
                     <tbody>
                         {% for c in categorias %}
                         <tr>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'mover_categoria' c.id 'subir' %}"
+                                       class="btn btn-outline-secondary {% if forloop.first %}disabled{% endif %}"
+                                       title="Subir en el orden de la carta">
+                                        <i class="bi bi-arrow-up"></i>
+                                    </a>
+                                    <a href="{% url 'mover_categoria' c.id 'bajar' %}"
+                                       class="btn btn-outline-secondary {% if forloop.last %}disabled{% endif %}"
+                                       title="Bajar en el orden de la carta">
+                                        <i class="bi bi-arrow-down"></i>
+                                    </a>
+                                </div>
+                            </td>
                             <td>{{ c.nombre }}</td>
                             <td>{{ c.descripcion|default:'-' }}</td>
                             <td>

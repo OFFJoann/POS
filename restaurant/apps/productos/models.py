@@ -14,14 +14,23 @@ class Categoria(models.Model):
     nombre = models.CharField('Nombre', max_length=100, unique=True)
     descripcion = models.TextField('Descripción', blank=True)
     activo = models.BooleanField('Activo', default=True)
+    orden = models.PositiveIntegerField('Orden', default=0)
 
     class Meta:
         verbose_name = 'Categoría'
         verbose_name_plural = 'Categorías'
-        ordering = ['nombre']
+        ordering = ['orden', 'nombre']
 
     def __str__(self):
         return self.nombre
+
+    def save(self, *args, **kwargs):
+        """Asigna un orden consecutivo automático si no se especificó uno."""
+        if not self.orden and not kwargs.get('update_fields'):
+            max_orden = Categoria.objects.aggregate(
+                m=models.Max('orden'))['m'] or 0
+            self.orden = max_orden + 1
+        super().save(*args, **kwargs)
 
 
 class UnidadMedida(models.Model):

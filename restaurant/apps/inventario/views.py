@@ -10,7 +10,7 @@ from .models import MovimientoInventario, ConsumoInterno
 from .forms import MovimientoInventarioForm, ConsumoInternoForm
 from .services import registrar_movimiento as servicio_registrar_movimiento
 from apps.usuarios.decorators import admin_required, permiso_required
-from apps.productos.models import Producto
+from apps.productos.models import Producto, Categoria
 
 
 @login_required
@@ -19,11 +19,18 @@ def lista_inventario(request):
     """
     Vista principal de inventario.
 
-    Muestra todos los productos con su stock actual.
+    Muestra los productos con su stock actual, agrupados por categoría.
     """
-    productos = Producto.objects.select_related('categoria', 'unidad').all()
+    categorias = Categoria.objects.all().order_by('orden', 'nombre')
+    productos_por_categoria = {}
+    for cat in categorias:
+        prods = Producto.objects.filter(
+            categoria=cat, es_combo=False
+        ).select_related('unidad', 'categoria')
+        if prods.exists():
+            productos_por_categoria[cat] = prods
     return render(request, 'inventario/lista_inventario.html', {
-        'productos': productos,
+        'productos_por_categoria': productos_por_categoria,
     })
 
 

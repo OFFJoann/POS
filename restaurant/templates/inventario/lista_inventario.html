@@ -24,60 +24,66 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="tabla-inventario">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th class="text-center">Stock actual</th>
-                            <th class="text-end" style="width: 70px;">Detalle</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in productos %}
-                        <tr class="{% if p.stock_actual <= p.stock_minimo %}table-warning{% endif %}">
-                            <td class="fw-bold">{{ p.nombre }}</td>
-                            <td>{{ p.categoria.nombre }}</td>
-                            <td class="text-center">
-                                {% if p.stock_actual <= p.stock_minimo %}
-                                <span class="badge bg-danger fs-6">{{ p.stock_actual|mil }}</span>
-                                {% else %}
-                                <span class="fs-6">{{ p.stock_actual|mil }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary btn-detalle"
-                                        data-id="{{ p.id }}"
-                                        data-codigo="{{ p.codigo }}"
-                                        data-nombre="{{ p.nombre }}"
-                                        data-categoria="{{ p.categoria.nombre }}"
-                                        data-unidad="{{ p.unidad }}"
-                                        data-precio-venta="{{ p.precio_venta }}"
-                                        data-costo="{{ p.costo }}"
-                                        data-comision="{{ p.comision }}"
-                                        data-stock-actual="{{ p.stock_actual }}"
-                                        data-stock-minimo="{{ p.stock_minimo }}"
-                                        data-es-combo="{{ p.es_combo|yesno:'Sí,No' }}"
-                                        data-estado="{{ p.get_estado_display }}"
-                                        data-estado-valor="{{ p.estado }}"
-                                        data-imagen="{% if p.imagen %}{{ p.imagen.url }}{% endif %}"
-                                        data-fecha-creacion="{{ p.created_at|date:'d/m/Y H:i' }}"
-                                        data-fecha-actualizacion="{{ p.updated_at|date:'d/m/Y H:i' }}">
-                                    <i class="bi bi-info-circle"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">
-                                No hay productos en inventario
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            {% for categoria, productos in productos_por_categoria.items %}
+            <div class="categoria-inventario {% if not forloop.last %}border-bottom{% endif %}">
+                <button class="categoria-titulo btn w-100 d-flex align-items-center justify-content-between py-3 px-3"
+                        data-bs-toggle="collapse" data-bs-target="#collapse-inv-{{ categoria.id }}"
+                        aria-expanded="false" aria-controls="collapse-inv-{{ categoria.id }}">
+                    <span class="fw-bold text-dark">
+                        <i class="bi bi-folder"></i> {{ categoria.nombre }}
+                        <span class="badge bg-light text-muted">{{ productos|length }} producto{{ productos|length|pluralize }}</span>
+                    </span>
+                    <i class="bi bi-chevron-down categoria-flecha text-muted"></i>
+                </button>
+                <div class="collapse" id="collapse-inv-{{ categoria.id }}">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <tbody>
+                                {% for p in productos %}
+                                <tr class="{% if p.stock_actual <= p.stock_minimo %}table-warning{% endif %}"
+                                    data-nombre="{{ p.nombre|lower }}"
+                                    data-categoria="{{ p.categoria.nombre|lower }}">
+                                    <td class="fw-bold">{{ p.nombre }}</td>
+                                    <td class="text-center">
+                                        {% if p.stock_actual <= p.stock_minimo %}
+                                        <span class="badge bg-danger fs-6">{{ p.stock_actual|mil }}</span>
+                                        {% else %}
+                                        <span class="fs-6">{{ p.stock_actual|mil }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end" style="width: 70px;">
+                                        <button class="btn btn-sm btn-outline-primary btn-detalle"
+                                                data-id="{{ p.id }}"
+                                                data-codigo="{{ p.codigo }}"
+                                                data-nombre="{{ p.nombre }}"
+                                                data-categoria="{{ p.categoria.nombre }}"
+                                                data-unidad="{{ p.unidad }}"
+                                                data-precio-venta="{{ p.precio_venta }}"
+                                                data-costo="{{ p.costo }}"
+                                                data-comision="{{ p.comision }}"
+                                                data-stock-actual="{{ p.stock_actual }}"
+                                                data-stock-minimo="{{ p.stock_minimo }}"
+                                                data-es-combo="{{ p.es_combo|yesno:'Sí,No' }}"
+                                                data-estado="{{ p.get_estado_display }}"
+                                                data-estado-valor="{{ p.estado }}"
+                                                data-imagen="{% if p.imagen %}{{ p.imagen.url }}{% endif %}"
+                                                data-fecha-creacion="{{ p.created_at|date:'d/m/Y H:i' }}"
+                                                data-fecha-actualizacion="{{ p.updated_at|date:'d/m/Y H:i' }}">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
+            {% empty %}
+            <div class="text-center text-muted py-4">
+                No hay productos en inventario
+            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -192,18 +198,45 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Buscar productos
+    // Buscar productos (expande las categorías con coincidencias)
     $('#buscador-inventario').on('input', function() {
         var texto = $(this).val().toLowerCase();
-        $('#tabla-inventario tbody tr').each(function() {
-            var nombre = $(this).find('td:eq(0)').text().toLowerCase();
-            var categoria = $(this).find('td:eq(1)').text().toLowerCase();
-            if (nombre.includes(texto) || categoria.includes(texto)) {
-                $(this).show();
+        $('.categoria-inventario').each(function() {
+            var categoria = $(this);
+            var visibles = 0;
+            categoria.find('tr[data-nombre]').each(function() {
+                var nombre = String($(this).data('nombre') || '').toLowerCase();
+                var cat = String($(this).data('categoria') || '').toLowerCase();
+                if (!texto || nombre.includes(texto) || cat.includes(texto)) {
+                    $(this).show();
+                    visibles++;
+                } else {
+                    $(this).hide();
+                }
+            });
+            var collapseEl = categoria.find('.collapse');
+            if (visibles === 0) {
+                categoria.hide();
             } else {
-                $(this).hide();
+                categoria.show();
+                if (texto) {
+                    collapseEl.collapse('show');
+                } else {
+                    collapseEl.collapse('hide');
+                }
             }
         });
+    });
+
+    // Girar la flecha al desplegar/contraer
+    $(document).on('shown.bs.collapse hidden.bs.collapse', '.collapse', function() {
+        var flecha = $(this).closest('.categoria-inventario').find('.categoria-flecha');
+        var colapsado = $(this).hasClass('show');
+        if (colapsado) {
+            flecha.addClass('rotada');
+        } else {
+            flecha.removeClass('rotada');
+        }
     });
 
     // Abrir modal detalle

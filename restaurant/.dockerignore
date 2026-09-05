@@ -1,0 +1,30 @@
+# Entorno y secrets
+.env
+.env.*
+!.env.example
+
+# Datos y artefactos locales del proyecto (no entran a la imagen)
+db.sqlite3
+backups/
+media/
+staticfiles/
+
+# Control de versiones
+.git/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# Documentación
+docs/
+*.md
+
+# Editor / SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,114 @@
+# ─── El Choli POS · Producción (Docker Compose) ─────────────────────────────
+# Inicio:  docker compose up -d --build
+# Logs:    docker compose logs -f
+# Paro:    docker compose down        (no borra datos ni backups)
+# Reinicio automático y recuperación ante fallos: restart: unless-stopped
+# Credenciales y configuración: archivo .env (NO va a git)
+
+name: el-choli-pos
+
+networks:
+  restaurant:
+    driver: bridge
+
+volumes:
+  pgdata:                         # datos PostgreSQL (sobreviven al contenedor)
+
+services:
+  # 1) Base de datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: elcholi_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ${BACKUP_DIR:-./backups}:/backups:ro   # para poder restaurar sin copiar archivos
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks: [restaurant]
+
+  # 2) Backups automáticos de la base de datos
+  backup:
+    image: postgres:16-alpine
+    container_name: elcholi_backup
+    restart: unless-stopped
+    entrypoint: ["/bin/sh"]
+    command: ["/opt/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - ./docker/backup.sh:/opt/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups      # los backups viven en el host
+    networks: [restaurant]
+
+  # 3) Aplicación Django (gunicorn)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elcholi_app
+    restart: unless-stopped
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_ENABLE_SSL: ${DJANGO_ENABLE_SSL:-False}
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT}
+      DJANGO_SUPERUSER_CEDULA: ${DJANGO_SUPERUSER_CEDULA:-}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-}
+      DJANGO_SUPERUSER_NOMBRE: ${DJANGO_SUPERUSER_NOMBRE:-}
+      DJANGO_SUPERUSER_APELLIDOS: ${DJANGO_SUPERUSER_APELLIDOS:-}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8000),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks: [restaurant]
+
+  # 4) nginx: estáticos, media y proxy inverso
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: elcholi_nginx
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./staticfiles:/staticfiles:ro
+      - ./media:/mediafiles:ro
+    networks: [restaurant]

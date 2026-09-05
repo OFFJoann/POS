@@ -1,5 +1,5 @@
 {% extends 'base/base.html' %}
-{% load static %}
+{% load static custom_filters %}
 
 {% block title %}Carta Digital{% endblock %}
 
@@ -38,6 +38,7 @@
                             {{ producto.nombre }}
                             {% if producto.es_combo %}<span class="badge bg-info ms-1">Combo</span>{% endif %}
                         </h6>
+                        <h5 class="fw-bold mb-0 mt-1">${{ producto.precio_venta|mil }}</h5>
                     </div>
                 </div>
             </div>

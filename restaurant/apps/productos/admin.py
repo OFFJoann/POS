@@ -8,9 +8,10 @@ from .models import Categoria, UnidadMedida, Producto
 @admin.register(Categoria)
 class CategoriaAdmin(admin.ModelAdmin):
     """Administración de categorías."""
-    list_display = ['nombre', 'activo']
+    list_display = ['nombre', 'orden', 'activo']
     list_filter = ['activo']
     search_fields = ['nombre']
+    ordering = ['orden', 'nombre']
 
 
 @admin.register(UnidadMedida)

@@ -14,6 +14,7 @@ urlpatterns = [
     path('categorias/', views.lista_categorias, name='lista_categorias'),
     path('categorias/crear/', views.crear_categoria, name='crear_categoria'),
     path('categorias/<int:pk>/editar/', views.editar_categoria, name='editar_categoria'),
+    path('categorias/<int:pk>/mover/<str:direccion>/', views.mover_categoria, name='mover_categoria'),
     path('unidades/', views.lista_unidades, name='lista_unidades'),
     path('unidades/crear/', views.crear_unidad, name='crear_unidad'),
     path('unidades/<int:pk>/editar/', views.editar_unidad, name='editar_unidad'),

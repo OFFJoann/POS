@@ -3,6 +3,12 @@
 
 Django>=5.0,<6.0
 
+# Base de datos PostgreSQL
+psycopg2-binary>=2.9
+
+# Servidor de producción
+gunicorn>=21.2
+
 # Exportación de reportes
 openpyxl>=3.1
 reportlab>=4.0
@@ -15,6 +21,3 @@ Pillow>=10.0
 
 # Decoradores y utilidades
 python-decouple>=3.8
-
-# Servidor de producción (opcional)
-# gunicorn>=21.2

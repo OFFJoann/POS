@@ -1,0 +1,27 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# ─── Entorno y secretos ───────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Datos del proyecto (nunca a git) ─────────────────────────────────────────
+db.sqlite3
+backups/
+media/
+staticfiles/
+.data-migracion/
+
+# ─── Editor / SO ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log

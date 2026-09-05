@@ -15,10 +15,16 @@ SECRET_KEY = os.environ.get(
     'django-insecure-cambiame-en-produccion-!@#$%^&*()'
 )
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = [
+    h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',') if h.strip()
+]
 CSRF_TRUSTED_ORIGINS = [
-    'https://20e3-45-178-14-186.ngrok-free.app',
-    'https://*.ngrok-free.app',
+    o.strip()
+    for o in os.environ.get(
+        'DJANGO_CSRF_TRUSTED_ORIGINS',
+        'https://20e3-45-178-14-186.ngrok-free.app,https://*.ngrok-free.app',
+    ).split(',')
+    if o.strip()
 ]
 
 # ─── Aplicaciones instaladas ────────────────────────────────────────────────
@@ -77,27 +83,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # ─── Base de datos ──────────────────────────────────────────────────────────
-DATABASES = {
-    'default': {
+# En producción se usa PostgreSQL cuando existe la variable DB_HOST
+# (se inyecta desde docker-compose / .env). Sin ella, se usa SQLite (desarrollo).
+def _db_engine():
+    if os.environ.get('DB_HOST'):
+        return {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'el_choli'),
+            'USER': os.environ.get('DB_USER', 'el_choli'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', 'db'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'CONN_MAX_AGE': 60,
+        }
+    return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 30,
-        },
+        'OPTIONS': {'timeout': 30},
     }
-}
 
-# Para migrar a PostgreSQL, cambiar a:
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'el_choli'),
-#         'USER': os.environ.get('DB_USER', 'el_choli_user'),
-#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#         'HOST': os.environ.get('DB_HOST', 'localhost'),
-#         'PORT': os.environ.get('DB_PORT', '5432'),
-#     }
-# }
+DATABASES = {'default': _db_engine()}
 
 # ─── Validador de contraseñas ───────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
@@ -141,3 +146,16 @@ LOGOUT_REDIRECT_URL = '/acceder/'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 28800  # 8 horas
 SESSION_SAVE_EVERY_REQUEST = True
+
+# ─── Seguridad TLS (detrás de nginx) ───────────────────────────────────────
+# Activa cookies seguras y confianza en el proxy de nginx cuando
+# DJANGO_ENABLE_SSL=True en el entorno de la aplicación.
+_ENABLE_SSL = os.environ.get('DJANGO_ENABLE_SSL', 'False').lower() in ('true', '1', 'yes')
+if _ENABLE_SSL:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = False  # el redireccionamiento lo hace nginx
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True

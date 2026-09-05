@@ -5,6 +5,7 @@ Gestiona las mesas de El Choli y sus pedidos activos.
 """
 from django.db import models
 from django.conf import settings
+from django.db.models import Sum
 
 
 class Mesa(models.Model):
@@ -146,13 +147,26 @@ class Pedido(models.Model):
         return f'Pedido #{self.id} - Mesa {self.mesa.numero}'
 
     def calcular_totales(self):
-        """Recalcula subtotal, descuento y total del pedido."""
+        """Recalcula subtotal, descuento, total y saldo pendiente del pedido."""
         detalles = self.detalles.all()
         self.subtotal = sum(d.subtotal for d in detalles)
         self.total = self.subtotal - self.descuento
         if self.total < 0:
             self.total = 0
-        self.save(update_fields=['subtotal', 'total', 'descuento'])
+        self.saldo_pendiente = self.falta_por_cobrar
+        self.save(update_fields=['subtotal', 'total', 'descuento', 'saldo_pendiente'])
+
+    @property
+    def falta_por_cobrar(self):
+        """
+        Monto real que falta por cobrar de este pedido.
+
+        Se calcula como el total menos lo ya pagado, sin depender del campo
+        ``saldo_pendiente`` que puede quedar desactualizado si se modifican
+        productos, cantidades o precios después de un pago parcial.
+        """
+        pagado = self.pagos.aggregate(total=Sum('monto'))['total'] or 0
+        return max(self.total - pagado, 0)
 
 
 class DetallePedido(models.Model):

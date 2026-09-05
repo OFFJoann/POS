@@ -82,7 +82,7 @@ def vista_mesas(request):
             to_attr='pedidos_activos'
         )
     )
-    categorias = Categoria.objects.filter(activo=True)
+    categorias = Categoria.objects.filter(activo=True).order_by('orden', 'nombre')
     return render(request, 'mesas/vista_mesas.html', {
         'mesas': mesas,
         'categorias': categorias,
@@ -212,7 +212,7 @@ def detalle_pedido(request, pedido_id):
             messages.error(request, 'No puedes modificar pedidos de otros vendedores.')
             return redirect('vista_mesas')
 
-    categorias = Categoria.objects.filter(activo=True)
+    categorias = Categoria.objects.filter(activo=True).order_by('orden', 'nombre')
     productos_por_categoria = {}
     for cat in categorias:
         prods = Producto.objects.filter(categoria=cat, estado='activo')
@@ -392,8 +392,43 @@ def cobrar_pedido(request, pedido_id):
 
     if request.method == 'POST':
         metodo_pago = request.POST.get('metodo_pago')
-        monto_a_cobrar = pedido.saldo_pendiente if pedido.estado == 'parcial' else pedido.total
+        monto_a_cobrar = pedido.falta_por_cobrar
         valor_recibido = Decimal(request.POST.get('valor_recibido', 0))
+
+        # Mesa ya pagada por completo (p. ej. con varios pagos parciales que
+        # sumaron el total, o pedidos heredados con saldo 0). Se cierra sin
+        # registrar un pago de $0 y queda libre.
+        if monto_a_cobrar <= 0:
+            factura = pedido.factura if pedido.estado == 'parcial' else None
+            if factura:
+                factura.es_parcial = False
+                factura.saldo_pendiente = 0
+                factura.valor_recibido = factura.total
+                factura.save()
+            pedido.estado = 'pagado'
+            pedido.saldo_pendiente = 0
+            pedido.fecha_cierre = timezone.now()
+            pedido.save()
+            pedido.mesa.estado = 'libre'
+            pedido.mesa.save()
+            if es_ajax:
+                return JsonResponse({
+                    'ok': True,
+                    'factura_id': factura.id if factura else 0,
+                    'numero': factura.numero if factura else 0,
+                    'cambio': 0,
+                    'mesa': pedido.mesa.numero,
+                    'pagado': True,
+                })
+            if factura:
+                messages.success(
+                    request,
+                    f'Mesa {pedido.mesa.numero} libre. Factura #{factura.numero} '
+                    f'pagada por completo con pagos parciales.'
+                )
+                return redirect('ver_factura', factura_id=factura.id)
+            messages.success(request, f'Mesa {pedido.mesa.numero} libre.')
+            return redirect('vista_mesas')
 
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
             if es_ajax:
@@ -529,8 +564,8 @@ def pago_parcial(request, pedido_id):
                 messages.error(request, 'No tienes permiso para cobrar como cortesía.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
 
-        # Calcular saldo pendiente real
-        saldo_pendiente = pedido.total if pedido.estado != 'parcial' else pedido.saldo_pendiente
+        # Calcular saldo pendiente real (total de la mesa menos lo ya pagado)
+        saldo_pendiente = pedido.falta_por_cobrar
 
         if monto_pago <= 0 or monto_pago > saldo_pendiente:
             if es_ajax:
@@ -573,10 +608,19 @@ def pago_parcial(request, pedido_id):
         )
 
         pedido.saldo_pendiente = saldo_restante
-        pedido.estado = 'parcial'
+        if saldo_restante <= 0:
+            # La mesa quedó pagada por completo con pagos parciales:
+            # se cierra como si hubiera sido un pago normal.
+            factura.es_parcial = False
+            factura.saldo_pendiente = 0
+            factura.save()
+            pedido.estado = 'pagado'
+            pedido.fecha_cierre = timezone.now()
+            pedido.mesa.estado = 'libre'
+        else:
+            pedido.estado = 'parcial'
+            pedido.mesa.estado = 'parcial'
         pedido.save()
-
-        pedido.mesa.estado = 'parcial'
         pedido.mesa.save()
 
         # Descontar inventario completo al primer pago (incluye combos)
@@ -591,12 +635,20 @@ def pago_parcial(request, pedido_id):
                 'numero': factura.numero,
                 'monto': float(monto_pago),
                 'saldo': float(saldo_restante),
+                'pagado': saldo_restante <= 0,
                 'mesa': pedido.mesa.numero,
             })
-        messages.success(
-            request,
-            f'Pago parcial registrado. Saldo pendiente: ${saldo_restante}'
-        )
+        if saldo_restante <= 0:
+            messages.success(
+                request,
+                f'Mesa {pedido.mesa.numero} pagada por completo con pagos parciales. '
+                f'Factura #{factura.numero}.'
+            )
+        else:
+            messages.success(
+                request,
+                f'Pago parcial registrado. Saldo pendiente: ${saldo_restante}'
+            )
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
     return redirect('detalle_pedido', pedido_id=pedido_id)

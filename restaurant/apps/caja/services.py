@@ -51,3 +51,21 @@ def obtener_caja_del_dia():
         activa=True,
         fecha_apertura__date=date.today()
     ).first()
+
+
+def calcular_falta_por_cobrar():
+    """
+    Monto pendiente de cobro de las mesas abiertas.
+
+    Se calcula como (total de los pedidos activos/parciales) menos lo ya
+    pagado. No usa `saldo_pendiente` porque puede quedar desactualizado al
+    modificar productos, cantidades o precios después de un pago parcial.
+    """
+    from apps.mesas.models import Pedido
+
+    estados = ['activo', 'parcial']
+    total_pedidos = Pedido.objects.filter(estado__in=estados).aggregate(
+        total=Sum('total'))['total'] or 0
+    pagado = Pago.objects.filter(pedido__estado__in=estados).aggregate(
+        total=Sum('monto'))['total'] or 0
+    return total_pedidos - pagado

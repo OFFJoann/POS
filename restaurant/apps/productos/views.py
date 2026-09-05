@@ -138,7 +138,7 @@ def carta_digital(request):
     categorias = (
         Categoria.objects
         .filter(activo=True)
-        .order_by('nombre')
+        .order_by('orden', 'nombre')
         .prefetch_related(
             Prefetch(
                 'productos',
@@ -182,10 +182,27 @@ def buscar_productos(request):
 @permiso_required('productos')
 def lista_categorias(request):
     """Lista todas las categorías."""
-    categorias = Categoria.objects.all()
+    categorias = Categoria.objects.all().order_by('orden', 'nombre')
     return render(request, 'productos/lista_categorias.html', {
         'categorias': categorias,
     })
+
+
+@login_required
+@permiso_required('productos')
+def mover_categoria(request, pk, direccion):
+    """Mueve una categoría hacia arriba o abajo y renumera el orden de la carta."""
+    categoria = get_object_or_404(Categoria, pk=pk)
+    lista = list(Categoria.objects.order_by('orden', 'nombre'))
+    idx = lista.index(categoria)
+    nuevo_idx = idx - 1 if direccion == 'subir' else idx + 1
+    if 0 <= nuevo_idx < len(lista):
+        lista[idx], lista[nuevo_idx] = lista[nuevo_idx], lista[idx]
+        for pos, c in enumerate(lista, start=1):
+            c.orden = pos
+        Categoria.objects.bulk_update(lista, ['orden'])
+        messages.success(request, f'"{categoria.nombre}" movido en el orden de la carta.')
+    return redirect('lista_categorias')
 
 
 @login_required
