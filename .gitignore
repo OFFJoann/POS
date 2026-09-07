@@ -9,6 +9,11 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.router.example
+
+# ─── Router multi-POS ─────────────────────────────────────────────────────────
+router/nginx.conf
+router/certs/
 
 # ─── Datos del proyecto (nunca a git) ─────────────────────────────────────────
 db.sqlite3

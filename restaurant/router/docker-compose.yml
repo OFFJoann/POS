@@ -1,0 +1,19 @@
+# ─── Router multi-POS · El Choli ─────────────────────────────────────────────
+# Un solo nginx por servidor que reparte el tráfico por subdominio a cada
+# instancia POS (cada una escucha en 127.0.0.1:808X dentro del host).
+#
+# Levantar en el servidor:
+#   cp .env.router.example .env.router   # define subdominios → puertos
+#   ./generar_conf.sh                    # genera nginx.conf y levanta
+#
+# Requiere network_mode: host (Linux) para poder alcanzar el loopback del servidor.
+
+services:
+  router:
+    image: nginx:1.27-alpine
+    container_name: elcholi_router
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/elcholi_router.conf:ro
+      - ./certs:/etc/nginx/certs:ro

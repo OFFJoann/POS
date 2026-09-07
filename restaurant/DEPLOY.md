@@ -33,7 +33,9 @@ restaurant/
 ├── scripts/
 │   ├── backup_db.sh        # backup manual inmediato
 │   ├── restore_db.sh       # restauración desde un backup
-│   └── migrar_a_postgres.sh# migración completa desde db.sqlite3
+│   ├── migrar_a_postgres.sh# migración completa desde db.sqlite3
+│   └── crear_pos.sh        # crea una instancia POS nueva por subdominio
+├── router/                 # nginx multi-POS (un router por servidor)
 └── backups/                # backups de PostgreSQL (host)
 ```
 
@@ -121,6 +123,56 @@ docker compose up -d --build                  # la app se reconstruye; el volume
 ```
 
 Los datos, media y backups viven en el host/volumen, no en la imagen.
+
+## Múltiples POS en el mismo servidor (por subdominio)
+
+Cada POS es una copia del proyecto en su propia carpeta (`/opt/pos1`, `/opt/pos2`, ...),
+cada una con su `.env` (puerto propio `127.0.0.1:808X`, subdominio, cédula admin).
+Un **router nginx** reparte el tráfico según el subdominio a cada puerto.
+
+### 1) Crear una instancia
+
+```bash
+cd /opt/elcholi/restaurant
+./crear_pos.sh                    # asistente: te pide nombre, subdominio, cédula, puerto
+```
+
+El asistente crea la copia en `/opt/<nombre>` y escribe el `.env` completo
+(subdominio, CSRF, cédula del admin, secretos únicos, puerto `127.0.0.1:808X`),
+quita `name:`/`container_name:` del compose y, si el router existe en `/opt/router`,
+lo registra automáticamente. **Solo falta arrancar**:
+
+```bash
+cd /opt/pos3
+docker compose up -d --build
+```
+
+> La instancia arranca **vacía**: en el primer arranque se crea solo el usuario
+> inicial (por cédula). El asistente también acepta argumentos posicionales:
+> `./crear_pos.sh pos3 pos3.midominio.com 1234567890 8085`.
+
+### 2) Router
+
+```bash
+mkdir -p /opt/router && cd /opt/router
+cp /opt/elcholi/restaurant/router/{docker-compose.yml,generar_conf.sh,.env.router.example} .
+cp .env.router.example .env.router       # edita: subdominio=puerto por línea
+./generar_conf.sh                        # genera nginx.conf y levanta el router
+```
+
+- DNS: los registros `A` de `pos1`, `pos2`, ... apuntan todos a la IP del servidor.
+- Config del router: `ROUTER_SSL=false` (HTTP) o `true` (HTTPS con certificado
+  wildcard en `certs/fullchain.pem` + `certs/privkey.pem`).
+- Cada subdominio se agrega como `posN.midominio.com=808N`.
+- El router con `network_mode: host` escucha en los puertos 80/443 del servidor y
+  reenvía a `127.0.0.1:<puerto>` de cada instancia (los POS no quedan expuestos).
+- Para descartar hosts no listados se responde `444`.
+
+### 3) HTTPS
+
+Certificado wildcard `*.tudominio.com` (Let's Encrypt), colócalo en `certs/`,
+pon `ROUTER_SSL=true` y vuelve a ejecutar `./generar_conf.sh`. Cada instancia debe
+tener en su `.env`: `DJANGO_ENABLE_SSL=True` y `DJANGO_CSRF_TRUSTED_ORIGINS=https://<subdominio>`.
 
 ## Migración desde db.sqlite3 → PostgreSQL
 
