@@ -712,7 +712,7 @@ $(document).ready(function() {
                 '</div>' +
                 '<div class="d-flex align-items-center gap-1 ms-2">' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary btn-resta-caja px-1">−</button>' +
-                    '<input type="number" class="form-control form-control-sm cantidad-caja-input mx-1 text-center" value="' + p.cantidad + '" min="1" step="1" style="width:56px;" inputmode="numeric">' +
+                    '<input type="text" class="form-control form-control-sm cantidad-caja-input mx-1 text-center" value="' + p.cantidad + '" inputmode="numeric" pattern="[0-9]*" maxlength="4" style="width:56px;">' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary btn-suma-caja px-1">+</button>' +
                     '<button type="button" class="btn btn-sm btn-outline-danger ms-1 p-1 btn-eliminar-caja">' +
                         '<i class="bi bi-x-lg"></i>' +
@@ -821,20 +821,24 @@ $(document).ready(function() {
     });
 
     // Digitar cantidad directo en el modal de caja
-    function aplicarCantidadCaja(input) {
-        var item = $(input).closest('.item-producto-caja');
-        var idx = item.data('idx');
-        var nueva = parseInt(input.value, 10) || 1;
-        if (nueva < 1) nueva = 1;
-        productosSeleccionadosCaja[idx].cantidad = nueva;
-        productosSeleccionadosCaja[idx].subtotal = nueva * productosSeleccionadosCaja[idx].precio;
-        actualizarResumenCaja();
-        item.find('.item-precio-caja').text('$' + productosSeleccionadosCaja[idx].precio.toLocaleString('es-CO') + ' x ' + nueva);
-    }
     $(document).on('input', '.cantidad-caja-input', function() {
-        aplicarCantidadCaja(this);
+        this.value = this.value.replace(/[^0-9]/g, '');
+        var item = $(this).closest('.item-producto-caja');
+        var idx = item.data('idx');
+        var nueva = parseInt(this.value, 10);
+        if (nueva && nueva >= 1) {
+            productosSeleccionadosCaja[idx].cantidad = nueva;
+            productosSeleccionadosCaja[idx].subtotal = nueva * productosSeleccionadosCaja[idx].precio;
+            actualizarResumenCaja();
+            item.find('.item-precio-caja').text('$' + productosSeleccionadosCaja[idx].precio.toLocaleString('es-CO') + ' x ' + nueva);
+        }
     });
-    $(document).on('change', '.cantidad-caja-input', function() {
+    $(document).on('focusout', '.cantidad-caja-input', function() {
+        var idx = $(this).closest('.item-producto-caja').data('idx');
+        if (!$(this).val() || parseInt($(this).val(), 10) < 1) {
+            productosSeleccionadosCaja[idx].cantidad = 1;
+            productosSeleccionadosCaja[idx].subtotal = productosSeleccionadosCaja[idx].precio;
+        }
         renderListaCaja();
     });
 
