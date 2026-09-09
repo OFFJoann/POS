@@ -712,7 +712,7 @@ $(document).ready(function() {
                 '</div>' +
                 '<div class="d-flex align-items-center gap-1 ms-2">' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary btn-resta-caja px-1">−</button>' +
-                    '<span class="fw-bold mx-1" style="min-width:20px;text-align:center;">' + p.cantidad + '</span>' +
+                    '<input type="number" class="form-control form-control-sm cantidad-caja-input mx-1 text-center" value="' + p.cantidad + '" min="1" step="1" style="width:56px;" inputmode="numeric">' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary btn-suma-caja px-1">+</button>' +
                     '<button type="button" class="btn btn-sm btn-outline-danger ms-1 p-1 btn-eliminar-caja">' +
                         '<i class="bi bi-x-lg"></i>' +
@@ -817,6 +817,16 @@ $(document).ready(function() {
         } else {
             productosSeleccionadosCaja.splice(idx, 1);
         }
+        renderListaCaja();
+    });
+
+    // Digitar cantidad directo en el modal de caja
+    $(document).on('change', '.cantidad-caja-input', function() {
+        var idx = $(this).closest('.item-producto-caja').data('idx');
+        var nueva = parseInt($(this).val(), 10) || 1;
+        if (nueva < 1) nueva = 1;
+        productosSeleccionadosCaja[idx].cantidad = nueva;
+        productosSeleccionadosCaja[idx].subtotal = nueva * productosSeleccionadosCaja[idx].precio;
         renderListaCaja();
     });
 
