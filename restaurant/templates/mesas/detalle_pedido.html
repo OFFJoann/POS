@@ -708,7 +708,7 @@ $(document).ready(function() {
             var html = '<div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom item-producto-caja" data-idx="' + idx + '">' +
                 '<div class="min-width-0 flex-grow-1">' +
                     '<small class="fw-bold d-block text-break">' + p.nombre + '</small>' +
-                    '<small class="text-muted">$' + p.precio.toLocaleString('es-CO') + ' x ' + p.cantidad + '</small>' +
+                    '<small class="text-muted item-precio-caja">$' + p.precio.toLocaleString('es-CO') + ' x ' + p.cantidad + '</small>' +
                 '</div>' +
                 '<div class="d-flex align-items-center gap-1 ms-2">' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary btn-resta-caja px-1">−</button>' +
@@ -821,12 +821,20 @@ $(document).ready(function() {
     });
 
     // Digitar cantidad directo en el modal de caja
-    $(document).on('change', '.cantidad-caja-input', function() {
-        var idx = $(this).closest('.item-producto-caja').data('idx');
-        var nueva = parseInt($(this).val(), 10) || 1;
+    function aplicarCantidadCaja(input) {
+        var item = $(input).closest('.item-producto-caja');
+        var idx = item.data('idx');
+        var nueva = parseInt(input.value, 10) || 1;
         if (nueva < 1) nueva = 1;
         productosSeleccionadosCaja[idx].cantidad = nueva;
         productosSeleccionadosCaja[idx].subtotal = nueva * productosSeleccionadosCaja[idx].precio;
+        actualizarResumenCaja();
+        item.find('.item-precio-caja').text('$' + productosSeleccionadosCaja[idx].precio.toLocaleString('es-CO') + ' x ' + nueva);
+    }
+    $(document).on('input', '.cantidad-caja-input', function() {
+        aplicarCantidadCaja(this);
+    });
+    $(document).on('change', '.cantidad-caja-input', function() {
         renderListaCaja();
     });
 
