@@ -144,14 +144,18 @@
                                               class="d-inline form-actualizar-cantidad">
                                             {% csrf_token %}
                                             <div class="input-group input-group-sm" style="width: 105px;">
+                                                {% if user|puede:"eliminar_productos" %}
                                                 <button type="button" class="btn btn-outline-secondary btn-resta px-1">−</button>
+                                                {% endif %}
                                                 <input type="number" name="cantidad" value="{{ detalle.cantidad|floatformat:0 }}"
+                                                       data-original="{{ detalle.cantidad|floatformat:0 }}"
                                                        class="form-control text-center cantidad-input" min="0" step="1" style="min-width:40px">
                                                 <button type="button" class="btn btn-outline-secondary btn-suma px-1">+</button>
                                             </div>
                                         </form>
                                     </td>
                                     <td class="text-end fw-bold">${{ detalle.subtotal|mil }}</td>
+                                    {% if user|puede:"eliminar_productos" %}
                                     <td>
                                         <form method="post" action="{% url 'quitar_producto' pedido.id detalle.id %}"
                                               class="d-inline">
@@ -163,6 +167,7 @@
                                             </button>
                                         </form>
                                     </td>
+                                    {% endif %}
                                 </tr>
                                 {% empty %}
                                 <tr>
@@ -543,7 +548,23 @@
 
 {% block extra_js %}
 <script>
+var PERM_ELIMINAR_PRODUCTOS = {% if user|puede:"eliminar_productos" %}true{% else %}false{% endif %};
 $(document).ready(function() {
+    // Desactiva el focus trap de los modales Bootstrap abiertos para que los
+    // inputs del SweetAlert (que viven en <body>) puedan recibir foco/teclado.
+    function desactivarTrapsDeModales() {
+        document.querySelectorAll('.modal.show').forEach(function(m) {
+            var inst = bootstrap.Modal.getInstance(m);
+            if (inst && inst._focustrap) inst._focustrap.deactivate();
+        });
+    }
+    function restaurarTrapsDeModales() {
+        document.querySelectorAll('.modal.show').forEach(function(m) {
+            var inst = bootstrap.Modal.getInstance(m);
+            if (inst && inst._focustrap) inst._focustrap.activate();
+        });
+    }
+
     // Agregar producto al pedido
     $('.btn-producto').on('click', function() {
         var id = $(this).data('producto-id');
@@ -553,10 +574,11 @@ $(document).ready(function() {
         $('#input-producto-id').val(id);
         $('#input-cantidad').val(1);
 
+        desactivarTrapsDeModales();
         Swal.fire({
             title: nombre,
             html: '<p class="text-muted mb-2"><i class="bi bi-folder"></i> ' + categoria + '</p>' +
-                  '<div class="mb-3"><label class="form-label">Cantidad</label><input id="swal-cantidad" class="form-control form-control-lg" type="number" value="1" min="1" step="1"></div>' +
+                  '<div class="mb-3"><label class="form-label">Cantidad</label><input id="swal-cantidad" class="form-control form-control-lg" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="1"></div>' +
 {% if user|puede:"cambiar_precio" %}
                   '<div class="mb-3"><label class="form-label">Precio unitario</label><input id="swal-precio" class="form-control form-control-lg" type="number" value="' + precio + '" min="0" step="1"></div>' +
 {% endif %}
@@ -566,6 +588,7 @@ $(document).ready(function() {
                   '',
             didOpen: function() {
                 document.getElementById('swal-cantidad').focus();
+                document.getElementById('swal-cantidad').select();
             },
             showCancelButton: true,
             confirmButtonText: 'Agregar',
@@ -577,7 +600,7 @@ $(document).ready(function() {
                 var precioEl = document.getElementById('swal-precio');
                 var precioVal = precioEl ? (parseInt(precioEl.value) || 0) : null;
                 return {
-                    cantidad: parseInt(document.getElementById('swal-cantidad').value) || 1,
+                    cantidad: parseInt(document.getElementById('swal-cantidad').value.replace(/[^0-9]/g, '')) || 1,
                     precio: precioVal,
                     cortesia: cortesia,
                 };
@@ -595,6 +618,7 @@ $(document).ready(function() {
                     $('#form-agregar-producto').submit();
                 }
             });
+            restaurarTrapsDeModales();
     });
 
     // Búsqueda de productos
@@ -629,7 +653,7 @@ $(document).ready(function() {
     $('.btn-resta').on('click', function() {
         var input = $(this).closest('.input-group').find('.cantidad-input');
         var val = parseInt(input.val()) - 1;
-        if (val > 0) {
+        if (val >= 1) {
             input.val(val);
             input.closest('form').submit();
         } else {
@@ -641,6 +665,23 @@ $(document).ready(function() {
     });
 
     $('.cantidad-input').on('change', function() {
+        var v = parseInt($(this).val()) || 0;
+        if (!PERM_ELIMINAR_PRODUCTOS) {
+            var original = parseInt($(this).data('original')) || 1;
+            if (v < original) {
+                $(this).val(original);
+                $(this).closest('form').submit();
+                return;
+            }
+        }
+        if (v <= 0) {
+            if (!PERM_ELIMINAR_PRODUCTOS) {
+                $(this).val(original || 1);
+                $(this).closest('form').submit();
+                return;
+            }
+            return;
+        }
         $(this).closest('form').submit();
     });
 
@@ -752,13 +793,15 @@ $(document).ready(function() {
         var categoria = $(this).data('categoria');
         var precio = parseFloat($(this).data('precio'));
 
+        desactivarTrapsDeModales();
         Swal.fire({
             title: nombre,
             html: '<p class="text-muted mb-2"><i class="bi bi-folder"></i> ' + categoria + '</p>' +
                   '<div class="mb-3"><label class="form-label">Cantidad</label>' +
-                  '<input id="swal-cantidad-caja" class="form-control form-control-lg" type="number" value="1" min="1" step="1"></div>',
+                  '<input id="swal-cantidad-caja" class="form-control form-control-lg" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="1"></div>',
             didOpen: function() {
                 document.getElementById('swal-cantidad-caja').focus();
+                document.getElementById('swal-cantidad-caja').select();
             },
             showCancelButton: true,
             confirmButtonText: 'Agregar',
@@ -766,7 +809,7 @@ $(document).ready(function() {
             confirmButtonColor: '#0d6efd',
             preConfirm: function() {
                 return {
-                    cantidad: parseInt(document.getElementById('swal-cantidad-caja').value) || 1,
+                    cantidad: parseInt(document.getElementById('swal-cantidad-caja').value.replace(/[^0-9]/g, '')) || 1,
                 };
             }
         }).then(function(result) {
@@ -797,6 +840,7 @@ $(document).ready(function() {
                     showConfirmButton: false,
                 });
             }
+            restaurarTrapsDeModales();
         });
     });
 

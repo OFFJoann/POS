@@ -315,10 +315,27 @@ def quitar_producto(request, pedido_id, detalle_id):
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
         nueva_cantidad = request.POST.get('cantidad')
-        if nueva_cantidad and Decimal(nueva_cantidad) > 0:
-            actualizar_cantidad_detalle(detalle, Decimal(nueva_cantidad))
-            messages.success(request, 'Cantidad actualizada.')
+        if nueva_cantidad:
+            nueva = Decimal(nueva_cantidad)
+            if nueva <= 0:
+                if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
+                    messages.error(request, 'No tienes permiso para eliminar productos de la mesa.')
+                    return redirect('detalle_pedido', pedido_id=pedido_id)
+                eliminar_detalle(detalle_id)
+                messages.success(request, 'Producto eliminado del pedido.')
+            elif nueva < detalle.cantidad:
+                if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
+                    messages.error(request, 'No tienes permiso para reducir la cantidad de productos de la mesa.')
+                    return redirect('detalle_pedido', pedido_id=pedido_id)
+                actualizar_cantidad_detalle(detalle, nueva)
+                messages.success(request, 'Cantidad actualizada.')
+            else:
+                actualizar_cantidad_detalle(detalle, nueva)
+                messages.success(request, 'Cantidad actualizada.')
         else:
+            if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
+                messages.error(request, 'No tienes permiso para eliminar productos de la mesa.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
             eliminar_detalle(detalle_id)
             messages.success(request, 'Producto eliminado del pedido.')
 

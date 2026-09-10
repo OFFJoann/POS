@@ -45,7 +45,7 @@ class AccederView(FormView):
     """
     template_name = 'auth/acceder.html'
     form_class = CedulaForm
-    success_url = reverse_lazy('dashboard')
+    success_url = reverse_lazy('vista_mesas')
 
     def form_valid(self, form):
         """Autentica al usuario por cédula."""
@@ -56,16 +56,16 @@ class AccederView(FormView):
             messages.success(self.request, f'Bienvenido {user.vendedor.nombre}!')
             if not user.vendedor.tour_completado:
                 return redirect('tour_capacitacion')
-            return super().form_valid(form)
+            return redirect('vista_mesas')
         messages.error(self.request, 'Cédula no encontrada o usuario inactivo.')
         return self.form_invalid(form)
 
     def get(self, request, *args, **kwargs):
-        """Redirige al dashboard si ya está autenticado."""
+        """Redirige a mesas si ya está autenticado."""
         if request.user.is_authenticated:
             if hasattr(request.user, 'vendedor') and not request.user.vendedor.tour_completado:
                 return redirect('tour_capacitacion')
-            return redirect('dashboard')
+            return redirect('vista_mesas')
         return super().get(request, *args, **kwargs)
 
 

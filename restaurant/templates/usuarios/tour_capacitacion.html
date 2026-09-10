@@ -187,7 +187,7 @@ function tourNav(dir) {
             },
         }).finally(() => {
             bootstrap.Modal.getInstance(document.getElementById('tourModal')).hide();
-            window.location.href = "{% url 'dashboard' %}";
+            window.location.href = "{% url 'vista_mesas' %}";
         });
         return;
     }

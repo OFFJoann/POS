@@ -65,6 +65,12 @@ class Vendedor(models.Model):
     perm_ver_facturas = models.BooleanField('Ver facturas', default=True,
         help_text='Consultar y ver el detalle de las facturas emitidas. '
                   'Independiente de poder facturar/cobrar.')
+    perm_eliminar_productos = models.BooleanField(
+        'Eliminar productos de las mesas', default=False,
+        help_text='Permite eliminar productos de un pedido de mesa, '
+                  'incluso si fue agregado por otro vendedor. '
+                  'Sin este permiso, un vendedor solo puede reducir la '
+                  'cantidad de los productos que agregó a su propia mesa.')
     es_receptor_pedidos = models.BooleanField('Receptor de pedidos', default=False,
         help_text='Recibe notificaciones en tiempo real de los pedidos '
                   'enviados a caja desde las mesas.')
@@ -102,6 +108,10 @@ class Vendedor(models.Model):
                             'Ver el dinero esperado y los totales al cerrar la caja.'),
         'ver_facturas': ('perm_ver_facturas', 'Ver facturas',
                          'Consultar y ver el detalle de las facturas emitidas.'),
+        'eliminar_productos': ('perm_eliminar_productos',
+                               'Eliminar productos de las mesas',
+                               'Eliminar productos de un pedido de mesa, '
+                               'aunque los haya agregado otro vendedor.'),
     }
 
     @classmethod

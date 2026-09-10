@@ -21,6 +21,7 @@ class VendedorForm(forms.ModelForm):
             'perm_productos', 'perm_inventario', 'perm_reportes',
             'perm_caja', 'perm_configuracion', 'perm_ver_totales_caja',
             'perm_modificar_otros_pedidos', 'perm_ver_facturas',
+            'perm_eliminar_productos',
         ]
         widgets = {
             'nombre': forms.TextInput(attrs={

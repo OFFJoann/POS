@@ -11,13 +11,16 @@ from apps.inventario.services import descontar_pedido
 
 
 @receiver(post_save, sender=Factura)
-def descontar_inventario_al_facturar(sender, instance, created, **kwargs):
+def descontar_inventario_al_facturar(sender, instance, created, raw=False, **kwargs):
     """
     Signal que descuenta el inventario cuando se crea una factura.
 
     Solo descuenta si no es un pago parcial (el inventario se
     descuenta completo en el primer pago). Los combos descuentan
-    sus productos componentes.
+    sus productos componentes. No ejecuta nada al cargar datos
+    externalmente (loaddata, raw=True): allí el inventario ya viene
+    con sus movimientos incluidos.
     """
-    if created and not instance.es_parcial and not getattr(instance, '_skip_inventory_deduction', False):
-        descontar_pedido(instance.pedido)
+    if raw or not created or instance.es_parcial or getattr(instance, '_skip_inventory_deduction', False):
+        return
+    descontar_pedido(instance.pedido)
