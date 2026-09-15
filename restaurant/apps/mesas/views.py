@@ -10,12 +10,13 @@ from django.http import JsonResponse, HttpResponse
 from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
+from collections import OrderedDict
 from django.db.models import Max, Prefetch
 from .models import Mesa, Pedido, DetallePedido, SolicitudPedido
 from .services import (
-    crear_pedido, agregar_producto_a_pedido,
-    modificar_cantidad, eliminar_detalle, actualizar_cantidad_detalle,
-    aplicar_descuento, cerrar_pedido
+    obtener_mesas_con_estado, crear_pedido, agregar_producto_a_pedido,
+    aplicar_descuento, enviar_a_caja, ajustar_cantidad_grupo,
+    eliminar_grupo_producto,
 )
 from .forms import AgregarProductoForm, DescuentoForm, MesaForm
 from apps.productos.models import Producto, Categoria
@@ -223,15 +224,51 @@ def detalle_pedido(request, pedido_id):
     form_descuento = DescuentoForm()
     vendedores = Vendedor.objects.filter(activo=True)
 
+    # Agrupa los detalles por producto/precio/cortesía sumando cantidades,
+    # para mostrar "Cerveza 2" y no una fila por cada adición enviada a caja.
+    detalles_agrupados = _agrupar_detalles(
+        pedido.detalles.select_related('producto').all()
+    )
+
     return render(request, 'mesas/detalle_pedido.html', {
         'pedido': pedido,
         'detalles': pedido.detalles.select_related('producto').all(),
+        'detalles_agrupados': detalles_agrupados,
         'productos_por_categoria': productos_por_categoria,
         'categorias': categorias,
         'form_producto': form_producto,
         'form_descuento': form_descuento,
         'vendedores': vendedores,
     })
+
+
+def _agrupar_detalles(queryset):
+    """Consolida los DetallePedido de un pedido en una fila por producto.
+
+    Agrupa por (producto, es_cortesia, precio_unitario, observaciones) y
+    suma cantidad y subtotal. Devuelve una lista de dicts ordenada por
+    nombre de producto.
+    """
+    grupos = OrderedDict()
+    for d in queryset:
+        key = (d.producto_id, d.es_cortesia, d.precio_unitario, d.observaciones)
+        grupo = grupos.get(key)
+        if grupo is None:
+            grupo = {
+                'producto': d.producto,
+                'es_cortesia': d.es_cortesia,
+                'precio_unitario': d.precio_unitario,
+                'observaciones': d.observaciones,
+                'detalle_id': d.id,
+                'cantidad': Decimal('0'),
+                'subtotal': Decimal('0'),
+            }
+            grupos[key] = grupo
+        grupo['cantidad'] += d.cantidad
+        grupo['subtotal'] += d.subtotal
+    lista = list(grupos.values())
+    lista.sort(key=lambda g: (g['producto'].nombre, str(g['precio_unitario'])))
+    return lista
 
 
 @login_required
@@ -270,6 +307,8 @@ def agregar_producto(request, pedido_id):
                 pedido, producto_id, cantidad,
                 cortesia=cortesia, precio_personalizado=precio_personalizado,
             )
+            vendedor = getattr(request.user, 'vendedor', None)
+            enviar_a_caja(pedido, detalle, vendedor)
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({
                     'success': True,
@@ -290,7 +329,10 @@ def agregar_producto(request, pedido_id):
 @login_required
 def quitar_producto(request, pedido_id, detalle_id):
     """
-    Elimina o reduce la cantidad de un producto del pedido.
+    Elimina o ajusta la cantidad de un producto del pedido.
+
+    Recibe el `detalle_id` representante del producto agrupado y opera
+    sobre todas las filas de ese mismo producto/precio/cortesía.
     """
     if request.method == 'POST':
         detalle = get_object_or_404(DetallePedido, pk=detalle_id, pedido_id=pedido_id)
@@ -301,42 +343,54 @@ def quitar_producto(request, pedido_id, detalle_id):
             messages.error(request, 'Permiso denegado.')
             return redirect('vista_mesas')
 
+        vendedor = getattr(request.user, 'vendedor', None)
+
         precio_unitario = request.POST.get('precio_unitario')
         if precio_unitario:
             _, precio_ok = _puede_cortesia_o_precio(request.user, request, False, True)
             if not precio_ok:
                 messages.error(request, 'No tienes permiso para cambiar precios.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
-            detalle.precio_unitario = Decimal(precio_unitario)
-            detalle.subtotal = detalle.cantidad * detalle.precio_unitario
-            detalle.save()
+            for f in DetallePedido.objects.filter(
+                pedido=detalle.pedido,
+                producto=detalle.producto,
+                es_cortesia=detalle.es_cortesia,
+            ):
+                f.precio_unitario = Decimal(precio_unitario)
+                f.subtotal = f.cantidad * f.precio_unitario
+                f.save()
             detalle.pedido.calcular_totales()
             messages.success(request, 'Precio actualizado.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
         nueva_cantidad = request.POST.get('cantidad')
-        if nueva_cantidad:
+        if nueva_cantidad is not None:
             nueva = Decimal(nueva_cantidad)
             if nueva <= 0:
                 if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
                     messages.error(request, 'No tienes permiso para eliminar productos de la mesa.')
                     return redirect('detalle_pedido', pedido_id=pedido_id)
-                eliminar_detalle(detalle_id)
+                eliminar_grupo_producto(detalle.pedido, detalle)
                 messages.success(request, 'Producto eliminado del pedido.')
-            elif nueva < detalle.cantidad:
+            elif nueva < sum(f.cantidad for f in DetallePedido.objects.filter(
+                pedido=detalle.pedido,
+                producto=detalle.producto,
+                es_cortesia=detalle.es_cortesia,
+                precio_unitario=detalle.precio_unitario,
+            )):
                 if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
                     messages.error(request, 'No tienes permiso para reducir la cantidad de productos de la mesa.')
                     return redirect('detalle_pedido', pedido_id=pedido_id)
-                actualizar_cantidad_detalle(detalle, nueva)
+                ajustar_cantidad_grupo(detalle.pedido, detalle, nueva, vendedor)
                 messages.success(request, 'Cantidad actualizada.')
             else:
-                actualizar_cantidad_detalle(detalle, nueva)
+                ajustar_cantidad_grupo(detalle.pedido, detalle, nueva, vendedor)
                 messages.success(request, 'Cantidad actualizada.')
         else:
             if not _autorizado_pedido(request.user, detalle.pedido, 'eliminar_productos', request):
                 messages.error(request, 'No tienes permiso para eliminar productos de la mesa.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
-            eliminar_detalle(detalle_id)
+            eliminar_grupo_producto(detalle.pedido, detalle)
             messages.success(request, 'Producto eliminado del pedido.')
 
     return redirect('detalle_pedido', pedido_id=pedido_id)
@@ -874,23 +928,38 @@ def solicitudes_pendientes_api(request):
     solicitudes = (
         SolicitudPedido.objects
         .filter(estado='pendiente')
+        .exclude(detalles__isnull=True)
         .select_related('mesa', 'solicitante', 'pedido')
         .prefetch_related('detalles__producto')
         .order_by('-created_at')[:20]
     )
     data = []
     for s in solicitudes:
-        items = [{
-            'producto': d.producto.nombre,
-            'cantidad': float(d.cantidad),
-            'cortesia': d.es_cortesia,
-        } for d in s.detalles.all()]
+        items_agrupados = OrderedDict()
+        for d in s.detalles.all():
+            key = (d.producto_id, d.es_cortesia)
+            entry = items_agrupados.get(key)
+            if entry is None:
+                entry = {
+                    'producto': d.producto.nombre,
+                    'cantidad': Decimal('0'),
+                    'cortesia': d.es_cortesia,
+                }
+                items_agrupados[key] = entry
+            entry['cantidad'] += d.cantidad
+        items = [
+            {'producto': i['producto'], 'cantidad': float(i['cantidad']), 'cortesia': i['cortesia']}
+            for i in items_agrupados.values()
+        ]
         data.append({
             'id': s.id,
             'pedido_id': s.pedido_id,
             'mesa': s.mesa.numero,
             'solicitante': str(s.solicitante) if s.solicitante else '—',
             'created_at': s.created_at.strftime('%H:%M'),
+            'updated_at': s.updated_at.strftime('%H:%M:%S'),
+            'mensaje': s.mensaje,
+            'version': s.version,
             'items': items,
         })
     return JsonResponse({'solicitudes': data})

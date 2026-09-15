@@ -7,20 +7,25 @@ from django.contrib.auth.models import User
 from .models import Vendedor
 
 
-def crear_vendedor(nombre, apellidos, cedula, telefono='', activo=True):
+def crear_vendedor(nombre, apellidos, cedula, email=None, telefono='', password=None, activo=True):
     """
     Crea un nuevo vendedor con su usuario Django asociado.
     """
     user = User.objects.create_user(
         username=cedula,
+        email=email or '',
         first_name=nombre,
         last_name=apellidos,
     )
+    if password:
+        user.set_password(password)
+        user.save()
     vendedor = Vendedor.objects.create(
         usuario=user,
         nombre=nombre,
         apellidos=apellidos,
         cedula=cedula,
+        email=email,
         telefono=telefono,
         activo=activo,
     )

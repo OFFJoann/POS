@@ -6,7 +6,9 @@ from . import views
 
 urlpatterns = [
     path('acceder/', views.AccederView.as_view(), name='acceder'),
+    path('acceder/2fa/', views.Verificar2FAView.as_view(), name='verificar_2fa'),
     path('salir/', views.salir, name='salir'),
+    path('usuarios/<int:pk>/2fa/', views.configurar_2fa, name='configurar_2fa'),
     path('', views.dashboard, name='dashboard'),
     path('usuarios/', views.lista_vendedores, name='lista_vendedores'),
     path('usuarios/crear/', views.crear_vendedor, name='crear_vendedor'),

@@ -43,14 +43,18 @@
         if (!data.solicitudes) return;
         var anunciadas = cargarAnunciadas();
         var hayNuevas = false;
-        // El modal solo sale UNA vez por solicitud (persistente entre
-        // navegaciones). En la carga inicial (silencioso) solo se registran
-        // las existentes sin mostrar el modal.
+        // El modal sale la primera vez que aparece una solicitud y cada vez
+        // que su versión cambia (se agregan más productos a la misma mesa).
+        // En la carga inicial (silencioso) solo se registran las existentes
+        // sin mostrar el modal.
         data.solicitudes.forEach(function (s) {
-          if (!(s.id in anunciadas) && !silencioso) {
+          var versionConocida = anunciadas[s.id];
+          if (versionConocida === undefined) {
+            if (!silencioso) hayNuevas = true;
+          } else if (s.version > versionConocida && !silencioso) {
             hayNuevas = true;
           }
-          anunciadas[s.id] = true;
+          anunciadas[s.id] = s.version;
         });
         guardarAnunciadas(anunciadas);
         renderizar(data.solicitudes);
@@ -75,9 +79,10 @@
       html += '<div class="card mb-2 border-warning">'
         + '<div class="card-header d-flex justify-content-between align-items-center py-2">'
         + '<strong>Mesa ' + s.mesa + '</strong>'
-        + '<small class="text-muted">' + s.created_at + ' · ' + s.solicitante + '</small>'
+        + '<small class="text-muted">' + s.updated_at + ' · ' + s.solicitante + '</small>'
         + '</div>'
         + '<div class="card-body py-2">'
+        + (s.mensaje ? '<p class="small text-muted mb-2"><i class="bi bi-info-circle"></i> ' + s.mensaje + '</p>' : '')
         + '<ul class="mb-2">' + items + '</ul>'
         + '<button class="btn btn-success btn-sm w-100 btn-atender" data-id="' + s.id + '">'
         + '<i class="bi bi-check-lg"></i> Marcar atendida</button>'

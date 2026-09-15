@@ -1,0 +1,64 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Verificar 2FA{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-5">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5 text-center">
+                    <div class="mb-4">
+                        <i class="bi bi-shield-lock" style="font-size: 4rem; color: var(--primary-color);"></i>
+                        <h1 class="h3 mt-3">Verificación en dos pasos</h1>
+                        <p class="text-muted">{{ correo }}</p>
+                    </div>
+
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <form method="post" autocomplete="off">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="form-label fs-6">Código de la aplicación</label>
+                            <input type="text" name="codigo" required autofocus
+                                   inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                                   placeholder="000000"
+                                   class="form-control form-control-lg text-center">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-check-lg"></i> Verificar
+                        </button>
+                    </form>
+
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Abre tu aplicación de autenticación y escribe el código de 6 dígitos.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .card {
+        border-radius: 20px;
+    }
+    .btn-primary {
+        padding: 12px;
+        font-size: 1.1rem;
+        border-radius: 10px;
+    }
+</style>
+{% endblock %}

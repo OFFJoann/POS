@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
-from .models import Mesa, Pedido, DetallePedido
+from .models import Mesa, Pedido, DetallePedido, SolicitudPedido
 from apps.productos.models import Producto
 
 
@@ -161,6 +161,7 @@ def eliminar_detalle(detalle_id):
     pedido = detalle.pedido
     detalle.delete()
     pedido.calcular_totales()
+    _limpiar_solicitudes_pendientes_vacias(pedido)
     return pedido
 
 
@@ -181,3 +182,154 @@ def cerrar_pedido(pedido):
     mesa.estado = 'libre'
     mesa.save()
     return pedido
+
+
+@transaction.atomic
+def enviar_a_caja(pedido, detalle, solicitante):
+    """
+    Envía un detalle a caja de forma automática.
+
+    Si ya existe una solicitud pendiente para la mesa, el detalle se
+    acumula en ella y se incrementa la versión para re-notificar.
+    Si no existe, se crea una solicitud nueva.
+    """
+    solicitud = SolicitudPedido.objects.filter(
+        mesa=pedido.mesa,
+        estado='pendiente',
+    ).order_by('-created_at').first()
+
+    if solicitud is None:
+        solicitud = SolicitudPedido.objects.create(
+            pedido=pedido,
+            mesa=pedido.mesa,
+            solicitante=solicitante,
+            mensaje=f'Nuevo pedido - Mesa {pedido.mesa.numero}',
+            version=1,
+        )
+    else:
+        solicitud.version += 1
+        if not solicitud.detalles.exists():
+            solicitud.mensaje = f'Nuevo pedido - Mesa {pedido.mesa.numero}'
+        else:
+            solicitud.mensaje = (
+                f'Se agregaron más productos - Mesa {pedido.mesa.numero}'
+            )
+        solicitud.save(update_fields=['mensaje', 'version', 'updated_at'])
+
+    detalle.solicitud = solicitud
+    detalle.save(update_fields=['solicitud'])
+    return solicitud
+
+
+def _limpiar_solicitudes_pendientes_vacias(pedido):
+    """Elimina solicitudes pendientes de la mesa que quedaron sin productos."""
+    SolicitudPedido.objects.filter(
+        pedido=pedido, estado='pendiente', detalles__isnull=True
+    ).delete()
+
+
+@transaction.atomic
+def ajustar_cantidad_grupo(pedido, detalle_ref, nueva_total, solicitante):
+    """
+    Ajusta la cantidad TOTAL de un producto en el pedido, agrupando todas
+    las filas de DetallePedido del mismo producto/precio/cortesía.
+
+    - Aumentar crea una fila nueva SIN enviar con la diferencia y la envía a
+      caja (acumulando en la solicitud pendiente de la mesa).
+    - Reducir quita primero de filas no enviadas y luego de las enviadas.
+    - Devolver 0 elimina todas las filas del grupo.
+    """
+    filas = list(DetallePedido.objects.filter(
+        pedido=pedido,
+        producto=detalle_ref.producto,
+        es_cortesia=detalle_ref.es_cortesia,
+        precio_unitario=detalle_ref.precio_unitario,
+    ).order_by('pk'))
+    if not filas:
+        return None
+
+    actual_total = sum(f.cantidad for f in filas)
+    nueva = Decimal(str(nueva_total))
+
+    if nueva <= 0:
+        for f in filas:
+            f.delete()
+        _limpiar_solicitudes_pendientes_vacias(pedido)
+        pedido.calcular_totales()
+        return None
+
+    delta = nueva - actual_total
+    if delta == 0:
+        return None
+
+    if delta > 0:
+        # Nueva adición: fila sin enviar y notificación a caja.
+        fila = DetallePedido.objects.filter(
+            pedido=pedido,
+            producto=detalle_ref.producto,
+            es_cortesia=detalle_ref.es_cortesia,
+            precio_unitario=detalle_ref.precio_unitario,
+            solicitud__isnull=True,
+        ).first()
+        if fila:
+            fila.cantidad += delta
+            fila.subtotal = fila.cantidad * fila.precio_unitario
+            fila.save()
+        else:
+            fila = DetallePedido.objects.create(
+                pedido=pedido,
+                producto=detalle_ref.producto,
+                es_cortesia=detalle_ref.es_cortesia,
+                precio_unitario=detalle_ref.precio_unitario,
+                cantidad=delta,
+                subtotal=detalle_ref.precio_unitario * delta,
+            )
+        enviar_a_caja(pedido, fila, solicitante)
+        pedido.calcular_totales()
+        return fila
+
+    # Reducción: primero filas no enviadas, luego las enviadas (más nuevas).
+    restante = -delta
+    for f in filas:
+        if f.solicitud is None:
+            if f.cantidad <= restante:
+                restante -= f.cantidad
+                f.delete()
+            else:
+                f.cantidad -= restante
+                f.subtotal = f.cantidad * f.precio_unitario
+                f.save()
+                restante = 0
+        if restante == 0:
+            break
+    for f in sorted(
+        (x for x in filas if x.solicitud is not None),
+        key=lambda x: x.solicitud_id or 0, reverse=True,
+    ):
+        if restante <= 0:
+            break
+        if f.cantidad <= restante:
+            restante -= f.cantidad
+            f.delete()
+        else:
+            f.cantidad -= restante
+            f.subtotal = f.cantidad * f.precio_unitario
+            f.save()
+            restante = 0
+
+    _limpiar_solicitudes_pendientes_vacias(pedido)
+    pedido.calcular_totales()
+    return None
+
+
+@transaction.atomic
+def eliminar_grupo_producto(pedido, detalle_ref):
+    """Elimina todas las filas de un producto (mismo precio/cortesía) del pedido."""
+    DetallePedido.objects.filter(
+        pedido=pedido,
+        producto=detalle_ref.producto,
+        es_cortesia=detalle_ref.es_cortesia,
+        precio_unitario=detalle_ref.precio_unitario,
+    ).delete()
+    _limpiar_solicitudes_pendientes_vacias(pedido)
+    pedido.calcular_totales()

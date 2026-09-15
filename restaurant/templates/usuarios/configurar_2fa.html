@@ -1,0 +1,77 @@
+{% extends 'base/base.html' %}
+
+{% block title %}2FA · {{ vendedor.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Autenticación de dos factores</h5>
+                    <a href="{% url 'editar_vendedor' vendedor.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <strong>{{ vendedor.nombre }} {{ vendedor.apellidos }}</strong>
+                        <span class="text-muted"> · {{ vendedor.email }}</span>
+                    </div>
+
+                    {% if vendedor.totp_secret %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> El 2FA está <strong>activado</strong>.
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <h6>Escanea este código con tu aplicación</h6>
+                        {% if qr_b64 %}
+                        <img src="{{ qr_b64 }}" alt="QR 2FA"
+                             style="max-width: 260px;" class="img-fluid border rounded">
+                        {% endif %}
+                        <p class="small text-muted mt-2">
+                            Usa Google Authenticator, Microsoft Authenticator o similar.
+                        </p>
+                        {% if otp_uri %}
+                        <input type="text" readonly class="form-control form-control-sm"
+                               style="font-size:0.75rem;" value="{{ otp_uri }}"
+                               onfocus="this.select()">
+                        {% endif %}
+                    </div>
+
+                    <form method="post" class="d-flex gap-2">
+                        {% csrf_token %}
+                        <button type="submit" name="accion" value="regenerar"
+                                class="btn btn-outline-warning flex-fill"
+                                onclick="return confirm('¿Regenerar el secreto? Se invalidará el actual.')">
+                            <i class="bi bi-arrow-repeat"></i> Regenerar secreto
+                        </button>
+                        <button type="submit" name="accion" value="desactivar"
+                                class="btn btn-outline-danger flex-fill"
+                                onclick="return confirm('¿Desactivar el 2FA para {{ vendedor.nombre }}?')">
+                            <i class="bi bi-x-circle"></i> Desactivar 2FA
+                        </button>
+                    </form>
+
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        <i class="bi bi-info-circle"></i> El 2FA está <strong>desactivado</strong>.
+                    </div>
+                    <p class="text-muted">
+                        Al activarlo, el vendedor deberá ingresar un código de su aplicación
+                        de autenticación después de cada contraseña.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" name="accion" value="activar" class="btn btn-primary w-100">
+                            <i class="bi bi-qr-code"></i> Activar 2FA y generar QR
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

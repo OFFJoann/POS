@@ -135,7 +135,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ─── Autenticación personalizada ────────────────────────────────────────────
 AUTHENTICATION_BACKENDS = [
-    'apps.usuarios.backends.CedulaBackend',
+    'apps.usuarios.backends.EmailBackend',
 ]
 
 LOGIN_URL = '/acceder/'

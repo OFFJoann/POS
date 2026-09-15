@@ -9,8 +9,8 @@ echo "==> Recolectando archivos estáticos..."
 python manage.py collectstatic --noinput
 
 # Crear el usuario inicial (por CÉDULA) la primera vez, si está configurado.
-# La app inicia sesión únicamente con la cédula y sin contraseña; por eso se
-# crea también su perfil de vendedor. El superusuario (is_staff) equivale a
+# El perfil de vendedor se crea también. La app inicia sesión con el CORREO y
+# la contraseña del usuario. El superusuario (is_staff) equivale a
 # administrador en los permisos.
 if [ -n "$DJANGO_SUPERUSER_CEDULA" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
     echo "==> Creando administrador inicial (cédula: $DJANGO_SUPERUSER_CEDULA)..."
@@ -22,6 +22,7 @@ from apps.usuarios.models import Vendedor
 cedula = os.environ['DJANGO_SUPERUSER_CEDULA'].strip()
 nombre = os.environ.get('DJANGO_SUPERUSER_NOMBRE', 'Admin')
 apellidos = os.environ.get('DJANGO_SUPERUSER_APELLIDOS', 'Administrador')
+email = os.environ.get('DJANGO_SUPERUSER_EMAIL', '').strip()
 
 if Vendedor.objects.filter(cedula=cedula).exists():
     print('El administrador inicial ya existe, se omite.')
@@ -29,7 +30,7 @@ else:
     user = User.objects.create_superuser(
         username=cedula,
         password=os.environ['DJANGO_SUPERUSER_PASSWORD'],
-        email=os.environ.get('DJANGO_SUPERUSER_EMAIL', ''),
+        email=email,
         first_name=nombre,
         last_name=apellidos,
     )
@@ -38,6 +39,7 @@ else:
         nombre=nombre,
         apellidos=apellidos,
         cedula=cedula,
+        email=email or None,
         telefono='3000000000',
         activo=True,
     )

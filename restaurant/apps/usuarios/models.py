@@ -11,8 +11,8 @@ class Vendedor(models.Model):
     """
     Perfil de vendedor de El Choli.
 
-    La cédula es el identificador único para iniciar sesión.
-    No se requiere contraseña.
+    El email es el identificador para iniciar sesión junto con su contraseña.
+    La cédula se conserva como identificador interno del vendedor.
     """
     usuario = models.OneToOneField(
         User, on_delete=models.CASCADE,
@@ -24,8 +24,14 @@ class Vendedor(models.Model):
     cedula = models.CharField(
         'Cédula', max_length=20, unique=True,
         db_index=True,
-        help_text='Identificador único para iniciar sesión'
+        help_text='Cédula de identidad (identificador interno)'
     )
+    email = models.EmailField('Correo', max_length=254, null=True, blank=True,
+        help_text='Correo con el que inicia sesión el vendedor')
+    totp_secret = models.CharField(
+        'Secreto 2FA', max_length=64, blank=True, default='',
+        help_text='Secreto TOTP para autenticación de dos factores '
+                  '(vacío = 2FA desactivado)')
     telefono = models.CharField('Teléfono', max_length=20, blank=True)
     activo = models.BooleanField('Activo', default=True)
 
@@ -160,5 +166,6 @@ class Vendedor(models.Model):
             self.usuario.first_name = self.nombre
             self.usuario.last_name = self.apellidos
             self.usuario.is_active = self.activo
-            self.usuario.save()
+        self.usuario.email = self.email or ''
+        self.usuario.save()
         super().save(*args, **kwargs)

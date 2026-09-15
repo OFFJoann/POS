@@ -43,10 +43,11 @@ class Mesa(models.Model):
 
 class SolicitudPedido(models.Model):
     """
-    Solicitud de un pedido enviada a caja ("Solicitar en caja").
+    Solicitud de un pedido enviada a caja.
 
-    Agrupa los detalles de un pedido que un mesero envía al receptor de
-    pedidos. Permanece pendiente hasta que el receptor la atiende.
+    Se crea automáticamente cuando un mesero agrega productos a una mesa.
+    Si ya existe una solicitud pendiente para la mesa, los productos se
+    acumulan en ella (se actualiza el mensaje y se re-notifica).
     """
     ESTADOS = [
         ('pendiente', 'Pendiente'),
@@ -68,7 +69,17 @@ class SolicitudPedido(models.Model):
     estado = models.CharField(
         'Estado', max_length=10, choices=ESTADOS, default='pendiente'
     )
+    mensaje = models.CharField(
+        'Mensaje', max_length=255, blank=True, default='',
+        help_text='Mensaje descriptivo para la notificación en caja'
+    )
+    version = models.PositiveIntegerField(
+        'Versión', default=0,
+        help_text='Se incrementa cada vez que se agregan productos. '
+                  'Usado para re-notificar al receptor.'
+    )
     created_at = models.DateTimeField('Creado', auto_now_add=True)
+    updated_at = models.DateTimeField('Actualizado', auto_now=True)
 
     class Meta:
         verbose_name = 'Solicitud de pedido'

@@ -1,19 +1,24 @@
 """
 Vistas de la aplicación usuarios.
 
-Incluye autenticación por cédula y CRUD de vendedores.
+Incluye autenticación por correo/contraseña con 2FA opcional
+y CRUD de vendedores.
 """
 from datetime import date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.views.generic import FormView
+from django.views.generic import FormView, TemplateView
 from django.urls import reverse_lazy
 from django import forms
 from django.db.models import Sum, F
 from django.http import JsonResponse
 import json
+import base64
+import io
+import pyotp
+import qrcode
 from .models import Vendedor
 from .forms import VendedorForm
 from .decorators import admin_required
@@ -23,41 +28,62 @@ from apps.productos.models import Producto
 from apps.mesas.models import Mesa
 
 
-class CedulaForm(forms.Form):
-    """Formulario para autenticación por cédula."""
-    cedula = forms.CharField(
-        label='Cédula',
-        max_length=20,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control form-control-lg text-center',
-            'placeholder': 'Ingresa tu cédula',
+class AccesoForm(forms.Form):
+    """Formulario para autenticación por correo y contraseña."""
+    email = forms.EmailField(
+        label='Correo',
+        max_length=254,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'correo@empresa.com',
             'autofocus': True,
-            'autocomplete': 'off',
+            'autocomplete': 'email',
+        })
+    )
+    password = forms.CharField(
+        label='Contraseña',
+        strip=False,
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Tu contraseña',
+            'autocomplete': 'current-password',
         })
     )
 
 
 class AccederView(FormView):
     """
-    Vista para iniciar sesión con cédula.
+    Vista para iniciar sesión con correo y contraseña.
 
-    No requiere contraseña, solo el número de cédula.
+    Si el vendedor tiene 2FA activado (totp_secret), deriva a la
+    verificación del código antes de completar el login.
     """
     template_name = 'auth/acceder.html'
-    form_class = CedulaForm
+    form_class = AccesoForm
     success_url = reverse_lazy('vista_mesas')
 
+    def _completar_login(self, request, user):
+        """Completa el login y redirige según el tour."""
+        login(request, user)
+        messages.success(request, f'Bienvenido {user.vendedor.nombre}!')
+        if not user.vendedor.tour_completado:
+            return redirect('tour_capacitacion')
+        return redirect('vista_mesas')
+
     def form_valid(self, form):
-        """Autentica al usuario por cédula."""
-        cedula = form.cleaned_data['cedula']
-        user = authenticate(self.request, cedula=cedula)
+        """Autentica al usuario por correo y contraseña."""
+        email = form.cleaned_data['email'].strip().lower()
+        password = form.cleaned_data['password']
+        user = authenticate(self.request, email=email, password=password)
         if user is not None:
-            login(self.request, user)
-            messages.success(self.request, f'Bienvenido {user.vendedor.nombre}!')
-            if not user.vendedor.tour_completado:
-                return redirect('tour_capacitacion')
-            return redirect('vista_mesas')
-        messages.error(self.request, 'Cédula no encontrada o usuario inactivo.')
+            vendedor = getattr(user, 'vendedor', None)
+            if vendedor and vendedor.totp_secret:
+                # Paso 1 completo: falta el código 2FA.
+                self.request.session['2fa_user'] = user.pk
+                return redirect('verificar_2fa')
+            return self._completar_login(self.request, user)
+        messages.error(self.request, 'Correo o contraseña incorrectos.')
+        form.add_error(None, 'Correo o contraseña incorrectos.')
         return self.form_invalid(form)
 
     def get(self, request, *args, **kwargs):
@@ -69,11 +95,112 @@ class AccederView(FormView):
         return super().get(request, *args, **kwargs)
 
 
+class Verificar2FAView(TemplateView):
+    """
+    Muestra y valida el código TOTP como segundo factor.
+
+    Requiere que en sesión exista '2fa_user' (puesto por AccederView).
+    """
+    template_name = 'auth/verificar_2fa.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        if 'error' not in ctx:
+            ctx['error'] = self.request.session.get('2fa_error')
+            self.request.session.pop('2fa_error', None)
+        user_id = self.request.session.get('2fa_user')
+        user = None
+        if user_id:
+            from django.contrib.auth.models import User
+            user = User.objects.filter(pk=user_id).first()
+        ctx['correo'] = user.email if (user and hasattr(user, 'vendedor')) else ''
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        user_id = request.session.get('2fa_user')
+        if not user_id:
+            return redirect('acceder')
+        from django.contrib.auth.models import User
+        user = User.objects.filter(pk=user_id).first()
+        vendedor = getattr(user, 'vendedor', None) if user else None
+        if not vendedor or not vendedor.totp_secret:
+            request.session.pop('2fa_user', None)
+            return redirect('acceder')
+
+        codigo = request.POST.get('codigo', '').strip()
+        totp = pyotp.TOTP(vendedor.totp_secret)
+        if totp.verify(codigo, valid_window=1):
+            request.session.pop('2fa_user', None)
+            return self._completar_login(request, user)
+        request.session['2fa_error'] = 'Código incorrecto o vencido.'
+        return redirect('verificar_2fa')
+
+    def _completar_login(self, request, user):
+        login(request, user)
+        messages.success(request, f'Bienvenido {user.vendedor.nombre}!')
+        if not user.vendedor.tour_completado:
+            return redirect('tour_capacitacion')
+        return redirect('vista_mesas')
+
+
 def salir(request):
     """Cierra la sesión del usuario."""
     logout(request)
     messages.info(request, 'Sesión cerrada correctamente.')
     return redirect('acceder')
+
+
+def _generar_qr(totp_uri):
+    """Genera un QR en base64 a partir de una URI TOTP."""
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(totp_uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color='black', back_color='white')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+
+def _otp_uri(vendedor, emisor='El Choli'):
+    """Construye la URI otpauth:// para la app de autenticación."""
+    return pyotp.totp.TOTP(vendedor.totp_secret).provisioning_uri(
+        name=vendedor.email or vendedor.cedula,
+        issuer_name=emisor)
+
+
+@login_required
+@admin_required
+def configurar_2fa(request, pk):
+    """
+    Activa o desactiva el 2FA de un vendedor.
+
+    GET: muestra el QR y el secreto si está activo.
+    POST:
+      - 'activar'  → genera un secreto TOTP nuevo (o conserva el actual)
+      - 'desactivar' → limpia el secreto (2FA desactivado)
+    """
+    vendedor = get_object_or_404(Vendedor, pk=pk)
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'desactivar':
+            vendedor.totp_secret = ''
+            vendedor.save(update_fields=['totp_secret'])
+            messages.success(request, '2FA desactivado para el vendedor.')
+            return redirect('editar_vendedor', pk=pk)
+        if accion == 'activar' and not vendedor.totp_secret:
+            vendedor.totp_secret = pyotp.random_base32()
+            vendedor.save(update_fields=['totp_secret'])
+            messages.success(request, '2FA activado. Escanea el código QR.')
+        elif accion == 'regenerar':
+            vendedor.totp_secret = pyotp.random_base32()
+            vendedor.save(update_fields=['totp_secret'])
+            messages.success(request, 'Secreto 2FA regenerado. Escanea el nuevo código QR.')
+
+    ctx = {'vendedor': vendedor, 'qr_b64': None, 'otp_uri': None}
+    if vendedor.totp_secret:
+        ctx['otp_uri'] = _otp_uri(vendedor)
+        ctx['qr_b64'] = _generar_qr(ctx['otp_uri'])
+    return render(request, 'usuarios/configurar_2fa.html', ctx)
 
 
 @login_required
