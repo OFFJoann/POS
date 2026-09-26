@@ -1,0 +1,131 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Inventario por apertura - El Choli{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 py-sm-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-camera"></i> Inventario por apertura</h5>
+        <a href="{% url 'lista_inventario' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <p class="text-muted small">Cada vez que abres caja se guarda el estado del inventario en ese momento. Aquí ves el stock de cada producto para cada <strong>apertura</strong> (no por día calendario).</p>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Desde</label>
+                    <input type="date" name="desde" class="form-control" value="{{ desde|date:'Y-m-d' }}">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Hasta</label>
+                    <input type="date" name="hasta" class="form-control" value="{{ hasta|date:'Y-m-d' }}">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1">Producto</label>
+                    <input type="text" name="q" class="form-control" placeholder="Buscar producto..." value="{{ termino }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <a href="{% url 'historial_snapshots' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-counterclockwise"></i> Últimas 5 aperturas
+                    </a>
+                </div>
+            </form>
+            <small class="text-muted d-block mt-2">
+                {% if desde or hasta %}
+                Aperturas del <strong>{{ desde|date:'d/m/Y' }}</strong> al <strong>{{ hasta|date:'d/m/Y' }}</strong> — <strong>{{ datos|length }}</strong> apertura{{ datos|length|pluralize }}
+                {% else %}
+                Mostrando las <strong>últimas 5 aperturas</strong> de caja
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    {% for item in datos %}
+    {% with ca=item.caja %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-2 py-sm-3" style="cursor:pointer"
+             data-bs-toggle="collapse" data-bs-target="#apertura-{{ ca.id }}">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-calendar2-week text-primary"></i>
+                    Apertura del {{ ca.fecha_apertura|date:'d/m/Y' }}
+                    <small class="text-muted">— {{ ca.fecha_apertura|date:'H:i' }} hrs</small>
+                </h6>
+                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <span class="text-muted small">
+                        <i class="bi bi-person"></i> {{ ca.usuario.get_full_name|default:ca.usuario }} ·
+                        {{ item.filas|length }} producto{{ item.filas|length|pluralize }}
+                    </span>
+                    <i class="bi bi-chevron-down ms-1"></i>
+                </div>
+            </div>
+        </div>
+        <div class="collapse" id="apertura-{{ ca.id }}">
+            <div class="card-body p-0">
+            {% if item.filas %}
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Producto</th>
+                            <th class="text-center">Stock al abrir</th>
+                            <th class="text-center">Cierre</th>
+                            <th class="text-end pe-3">Consumido</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in item.filas %}
+                        <tr>
+                            <td class="ps-3">
+                                {{ f.producto.nombre }}
+                                <small class="text-muted">({{ f.producto.unidad.abreviatura }})</small>
+                            </td>
+                            <td class="text-center fw-bold">{{ f.inicial|floatformat:0 }}</td>
+                            <td class="text-center">
+                                {% if f.final is not None %}
+                                {{ f.final|floatformat:0 }}
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-3">
+                                {% if f.consumido is not None %}
+                                <span class="{% if f.consumido > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">{{ f.consumido|floatformat:0 }}</span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0 p-3 small">Sin productos que coincidan con el filtro.</p>
+            {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endwith %}
+    {% empty %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-camera-off fs-1"></i>
+            <p class="mt-2 mb-0">No hay aperturas de caja con inventario registrado.</p>
+            <small class="d-block mt-1">El snapshot se guarda automáticamente cada vez que abres caja.</small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

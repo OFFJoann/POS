@@ -436,6 +436,27 @@ def guardar_observaciones(request, pedido_id):
 
 @login_required
 @transaction.atomic
+def _procesar_envio_correo(request, factura):
+    """
+    Lee los campos correo_cliente/enviar_correo del POST, guarda el correo
+    en la factura y envía el PDF si el usuario lo solicitó.
+
+    Retorna (bool_algo_se_hizo, mensaje). Nunca interrumpe el cobro.
+    """
+    correo = (request.POST.get('correo_cliente', '') or '').strip()
+    enviar = request.POST.get('enviar_correo') in ('1', 'true', 'on', 'yes')
+    if correo:
+        factura.correo_cliente = correo
+        factura.save(update_fields=['correo_cliente'])
+    if not (enviar and correo):
+        return False, ''
+    from apps.ventas.services import enviar_factura_correo
+    ok, detalle = enviar_factura_correo(factura, correo)
+    if ok:
+        return True, 'Factura #%s enviada a %s.' % (factura.numero, detalle)
+    return True, 'No se pudo enviar la factura por correo: %s' % detalle
+
+
 def cobrar_pedido(request, pedido_id):
     """
     Procesa el cobro completo de un pedido.
@@ -482,6 +503,9 @@ def cobrar_pedido(request, pedido_id):
             pedido.save()
             pedido.mesa.estado = 'libre'
             pedido.mesa.save()
+            envio_ok, mensaje_envio = (False, '')
+            if factura:
+                envio_ok, mensaje_envio = _procesar_envio_correo(request, factura)
             if es_ajax:
                 return JsonResponse({
                     'ok': True,
@@ -490,13 +514,15 @@ def cobrar_pedido(request, pedido_id):
                     'cambio': 0,
                     'mesa': pedido.mesa.numero,
                     'pagado': True,
+                    'correo_enviado': envio_ok,
+                    'correo_mensaje': mensaje_envio,
                 })
             if factura:
-                messages.success(
-                    request,
-                    f'Mesa {pedido.mesa.numero} libre. Factura #{factura.numero} '
-                    f'pagada por completo con pagos parciales.'
-                )
+                msg = (f'Mesa {pedido.mesa.numero} libre. Factura #{factura.numero} '
+                       f'pagada por completo con pagos parciales.')
+                if mensaje_envio:
+                    msg += ' ' + mensaje_envio
+                messages.success(request, msg)
                 return redirect('ver_factura', factura_id=factura.id)
             messages.success(request, f'Mesa {pedido.mesa.numero} libre.')
             return redirect('vista_mesas')
@@ -575,6 +601,9 @@ def cobrar_pedido(request, pedido_id):
         pedido.mesa.estado = 'libre'
         pedido.mesa.save()
 
+        # Enviar factura por correo si el usuario lo pidió
+        envio_ok, mensaje_envio = _procesar_envio_correo(request, factura)
+
         if es_ajax:
             return JsonResponse({
                 'ok': True,
@@ -582,12 +611,14 @@ def cobrar_pedido(request, pedido_id):
                 'numero': factura.numero,
                 'cambio': float(cambio),
                 'mesa': pedido.mesa.numero,
+                'correo_enviado': envio_ok,
+                'correo_mensaje': mensaje_envio,
             })
-        messages.success(
-            request,
-            f'Factura #{factura.numero} generada. Cambio: ${cambio}. '
-            f'Mesa {pedido.mesa.numero} libre.'
-        )
+        msg = (f'Factura #{factura.numero} generada. Cambio: ${cambio}. '
+               f'Mesa {pedido.mesa.numero} libre.')
+        if mensaje_envio:
+            msg += ' ' + mensaje_envio
+        messages.success(request, msg)
         return redirect('ver_factura', factura_id=factura.id)
 
     return redirect('detalle_pedido', pedido_id=pedido_id)
@@ -699,6 +730,9 @@ def pago_parcial(request, pedido_id):
             from apps.inventario.services import descontar_pedido
             descontar_pedido(pedido)
 
+        # Enviar factura por correo si el usuario lo pidió
+        envio_ok, mensaje_envio = _procesar_envio_correo(request, factura)
+
         if es_ajax:
             return JsonResponse({
                 'ok': True,
@@ -708,18 +742,20 @@ def pago_parcial(request, pedido_id):
                 'saldo': float(saldo_restante),
                 'pagado': saldo_restante <= 0,
                 'mesa': pedido.mesa.numero,
+                'correo_enviado': envio_ok,
+                'correo_mensaje': mensaje_envio,
             })
         if saldo_restante <= 0:
-            messages.success(
-                request,
-                f'Mesa {pedido.mesa.numero} pagada por completo con pagos parciales. '
-                f'Factura #{factura.numero}.'
-            )
+            msg = (f'Mesa {pedido.mesa.numero} pagada por completo con pagos parciales. '
+                   f'Factura #{factura.numero}.')
+            if mensaje_envio:
+                msg += ' ' + mensaje_envio
+            messages.success(request, msg)
         else:
-            messages.success(
-                request,
-                f'Pago parcial registrado. Saldo pendiente: ${saldo_restante}'
-            )
+            msg = f'Pago parcial registrado. Saldo pendiente: ${saldo_restante}'
+            if mensaje_envio:
+                msg += ' ' + mensaje_envio
+            messages.success(request, msg)
         return redirect('detalle_pedido', pedido_id=pedido_id)
 
     return redirect('detalle_pedido', pedido_id=pedido_id)

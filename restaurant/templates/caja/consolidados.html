@@ -32,6 +32,40 @@
         </a>
     </div>
 
+    <!-- Filtro por rango de fechas -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Desde</label>
+                    <input type="date" name="desde" class="form-control" value="{{ desde|date:'Y-m-d' }}">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Hasta</label>
+                    <input type="date" name="hasta" class="form-control" value="{{ hasta|date:'Y-m-d' }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <a href="{% url 'consolidados' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-counterclockwise"></i> Últimos 5 cierres
+                    </a>
+                </div>
+            </form>
+            <small class="text-muted d-block mt-2">
+                {% if desde or hasta %}
+                Rango consultado del <strong>{{ rango_desde|date:'d/m/Y' }}</strong> al <strong>{{ rango_hasta|date:'d/m/Y' }}</strong> — <strong>{{ datos_cierres|length }}</strong> cierre{{ datos_cierres|length|pluralize }}
+                {% else %}
+                Mostrando los <strong>5 últimos consolidados</strong> generados
+                (del <strong>{{ rango_desde|date:'d/m/Y' }}</strong> al <strong>{{ rango_hasta|date:'d/m/Y' }}</strong>)
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
     {% for item in datos_cierres %}
     {% with c=item.cierre uid=forloop.counter %}
     <div class="card border-0 shadow-sm mb-3">

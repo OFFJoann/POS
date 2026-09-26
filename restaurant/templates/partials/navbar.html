@@ -47,6 +47,7 @@
                         {% if user|puede:"inventario" %}
                         <li><a class="dropdown-item" href="{% url 'lista_inventario' %}"><i class="bi bi-clipboard-data"></i> Inventario</a></li>
                         <li><a class="dropdown-item" href="{% url 'historial_inventario' %}"><i class="bi bi-clock-history"></i> Historial</a></li>
+                        <li><a class="dropdown-item" href="{% url 'historial_snapshots' %}"><i class="bi bi-camera"></i> Inventario por fecha</a></li>
                         <li><a class="dropdown-item" href="{% url 'registrar_consumo_interno' %}"><i class="bi bi-cup-straw"></i> Consumo interno</a></li>
                         {% endif %}
                     </ul>

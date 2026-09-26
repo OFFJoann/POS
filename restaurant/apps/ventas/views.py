@@ -105,6 +105,43 @@ def factura_pdf(request, factura_id):
 
 
 @login_required
+def enviar_factura_correo(request, factura_id):
+    """
+    Envía la factura en PDF por correo al cliente.
+    """
+    if request.method != 'POST':
+        return redirect('ver_factura', factura_id=factura_id)
+
+    factura = get_object_or_404(Factura, pk=factura_id)
+    if not _puede_ver_factura(request.user, factura):
+        messages.error(request, 'No tienes permiso para ver esta factura.')
+        return redirect('vista_mesas')
+
+    correo = (request.POST.get('correo', '') or '').strip()
+    if factura.correo_cliente and not correo:
+        correo = factura.correo_cliente
+    if not correo:
+        messages.error(request, 'Indica el correo del cliente para enviar la factura.')
+        return redirect('ver_factura', factura_id=factura.id)
+
+    from .services import enviar_factura_correo
+    ok, detalle = enviar_factura_correo(factura, correo)
+    if ok:
+        factura.correo_cliente = correo
+        factura.save(update_fields=['correo_cliente'])
+        messages.success(
+            request,
+            'Factura #%s enviada a %s.' % (factura.numero, detalle)
+        )
+    else:
+        messages.error(
+            request,
+            'No se pudo enviar la factura por correo: %s' % detalle
+        )
+    return redirect('ver_factura', factura_id=factura.id)
+
+
+@login_required
 @permiso_required('ver_facturas')
 def buscar_facturas(request):
     """

@@ -58,6 +58,10 @@ class Factura(models.Model):
         'Saldo pendiente', max_digits=12, decimal_places=2,
         default=0
     )
+    correo_cliente = models.EmailField(
+        'Correo del cliente', blank=True, default='',
+        help_text='Correo al que se envía la factura'
+    )
     created_at = models.DateTimeField('Fecha', auto_now_add=True)
 
     class Meta:

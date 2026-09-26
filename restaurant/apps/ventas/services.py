@@ -224,8 +224,8 @@ class _PDF:
         return bytes(out)
 
 
-def generar_factura_pdf(factura):
-    """Genera el PDF de una factura usando solo la librería estándar."""
+def generar_factura_pdf_bytes(factura):
+    """Retorna el PDF de una factura como bytes (solo librería estándar)."""
     from apps.configuracion.models import Configuracion
     config = Configuracion.obtener()
     pdf = _PDF()
@@ -298,10 +298,58 @@ def generar_factura_pdf(factura):
     y += 30
     pdf.text(x, y, '¡Gracias por su visita!', size=11, bold=True)
 
-    data = pdf.build()
+    return pdf.build()
+
+
+def generar_factura_pdf(factura):
+    """Genera y retorna el PDF de una factura como HttpResponse."""
+    data = generar_factura_pdf_bytes(factura)
     response = HttpResponse(data, content_type='application/pdf')
     response['Content-Disposition'] = 'filename=factura_%s.pdf' % factura.numero
     return response
+
+
+def enviar_factura_correo(factura, correo):
+    """
+    Envía la factura en PDF por correo al cliente.
+
+    Retorna (ok, detalle). Nunca lanza excepciones: si el envío falla
+    se retorna (False, motivo) para no interrumpir el cobro.
+    """
+    from django.core.mail import EmailMessage
+    from apps.configuracion.models import Configuracion
+
+    try:
+        correo = (correo or '').strip()
+        if not correo:
+            return False, 'Indica el correo del cliente.'
+        if '@' not in correo or '.' not in correo.rsplit('@', 1)[-1]:
+            return False, 'El correo del cliente no es válido.'
+
+        pdf = generar_factura_pdf_bytes(factura)
+        if not pdf:
+            return False, 'No se pudo generar el PDF de la factura.'
+
+        config = Configuracion.obtener()
+        empresa = config.nombre_empresa or 'El Choli'
+        email = EmailMessage(
+            subject='Factura #%s - %s' % (factura.numero, empresa),
+            body='Hola,\n\nAdjuntamos la factura #%s de %s.\n'
+                 'Total: $%s\n\n¡Gracias por su visita!' % (
+                     factura.numero, empresa,
+                     _fmt_mil(factura.total),
+                 ),
+            to=[correo],
+        )
+        email.attach(
+            'factura_%s.pdf' % factura.numero,
+            pdf,
+            'application/pdf',
+        )
+        email.send()
+        return True, correo
+    except Exception as exc:
+        return False, str(exc)
 
 
 def generar_reporte_ventas_pdf(facturas, fecha_generacion):

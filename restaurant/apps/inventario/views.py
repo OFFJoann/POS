@@ -1,16 +1,19 @@
 """
 Vistas de la aplicación inventario.
 """
+from datetime import time
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Q
+from django.utils import timezone
 from .models import MovimientoInventario, ConsumoInterno
 from .forms import MovimientoInventarioForm, ConsumoInternoForm
 from .services import registrar_movimiento as servicio_registrar_movimiento
 from apps.usuarios.decorators import admin_required, permiso_required
 from apps.productos.models import Producto, Categoria
+from apps.caja.models import AperturaCaja
 
 
 @login_required
@@ -153,4 +156,82 @@ def registrar_consumo_interno(request):
 
     return render(request, 'inventario/form_consumo_interno.html', {
         'form': form,
+    })
+
+
+@login_required
+@permiso_required('inventario')
+def historial_snapshots(request):
+    """
+    Muestra el inventario registrado en cada apertura de caja.
+
+    Cada vez que se abre caja se guarda un snapshot del stock. Por defecto
+    se muestran las 5 aperturas más recientes; con `desde`/`hasta`
+    (YYYY-MM-DD) se filtra por fecha de apertura y con `q` por producto.
+    """
+    def _parsear_fecha(valor):
+        try:
+            return timezone.datetime.strptime(valor, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return None
+
+    desde = _parsear_fecha(request.GET.get('desde'))
+    hasta = _parsear_fecha(request.GET.get('hasta'))
+    termino = request.GET.get('q', '')
+
+    aperturas = (
+        AperturaCaja.objects
+        .filter(snapshots_inventario__momento='apertura')
+        .distinct()
+        .order_by('-fecha_apertura')
+    )
+
+    if desde and hasta:
+        if desde > hasta:
+            desde, hasta = hasta, desde
+        desde_dt = timezone.make_aware(timezone.datetime.combine(desde, time.min))
+        hasta_dt = timezone.make_aware(timezone.datetime.combine(hasta, time.max))
+        aperturas = aperturas.filter(
+            fecha_apertura__gte=desde_dt,
+            fecha_apertura__lte=hasta_dt,
+        )
+    else:
+        aperturas = aperturas[:5]
+
+    aperturas = list(aperturas)
+
+    datos = []
+    for ca in aperturas:
+        apertura_snaps = (
+            ca.snapshots_inventario
+            .filter(momento='apertura')
+            .select_related('producto', 'producto__unidad')
+        )
+        cierre_snaps = {
+            s.producto_id: s.cantidad
+            for s in ca.snapshots_inventario.filter(momento='cierre')
+        }
+        filas = []
+        for s in apertura_snaps:
+            producto = s.producto
+            if termino and termino.lower() not in producto.nombre.lower():
+                continue
+            final = cierre_snaps.get(s.producto_id)
+            filas.append({
+                'producto': producto,
+                'inicial': s.cantidad,
+                'final': final,
+                'consumido': (s.cantidad - final) if final is not None else None,
+            })
+        filas.sort(key=lambda f: f['producto'].nombre)
+        datos.append({
+            'caja': ca,
+            'filas': filas,
+        })
+
+    return render(request, 'inventario/snapshots_inventario.html', {
+        'datos': datos,
+        'desde': desde,
+        'hasta': hasta,
+        'termino': termino,
     })

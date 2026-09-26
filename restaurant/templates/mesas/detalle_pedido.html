@@ -294,6 +294,17 @@
                         <input type="number" name="valor_recibido" class="form-control form-control-lg"
                                inputmode="numeric" step="1" min="{{ monto|floatformat:0 }}" value="{{ monto|floatformat:0 }}" required>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Correo del cliente (opcional)</label>
+                        <input type="email" name="correo_cliente" class="form-control form-control-lg"
+                               placeholder="cliente@correo.com">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="enviar_correo" id="enviarCorreoCobro">
+                            <label class="form-check-label small" for="enviarCorreoCobro">
+                                Enviar factura por correo
+                            </label>
+                        </div>
+                    </div>
                     {% endwith %}
                 </div>
                 <div class="modal-footer">
@@ -352,6 +363,17 @@
                                step="1" min="1"
                                max="{{ pedido.falta_por_cobrar|floatformat:0 }}"
                                required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Correo del cliente (opcional)</label>
+                        <input type="email" name="correo_cliente" class="form-control form-control-lg"
+                               placeholder="cliente@correo.com">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="enviar_correo" id="enviarCorreoParcial">
+                            <label class="form-check-label small" for="enviarCorreoParcial">
+                                Enviar factura por correo
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -599,6 +621,12 @@ $(document).ready(function() {
             }
         }
     }
+
+    // Marcar "enviar por correo" automáticamente al escribir el correo del cliente
+    $('.modal input[name="correo_cliente"]').on('input', function() {
+        var modal = $(this).closest('.modal');
+        modal.find('input[name="enviar_correo"]').prop('checked', !!$(this).val());
+    });
     document.querySelectorAll('.modal').forEach(function(modal) {
         var select = modal.querySelector('select[name="metodo_pago"]');
         if (select) {
@@ -637,7 +665,7 @@ $(document).ready(function() {
                     Swal.fire({
                         icon: 'success',
                         title: 'Cobro exitoso',
-                        text: 'Factura #' + resp.numero + ' | Cambio: $' + resp.cambio.toLocaleString('es-CO'),
+                        text: 'Factura #' + resp.numero + ' | Cambio: $' + resp.cambio.toLocaleString('es-CO') + (resp.correo_mensaje ? ' | ' + resp.correo_mensaje : ''),
                         timer: 1800,
                         showConfirmButton: false,
                     }).then(function() {
@@ -675,6 +703,9 @@ $(document).ready(function() {
                     var texto = resp.pagado
                         ? 'La mesa ' + resp.mesa + ' quedó pagada por completo.'
                         : 'Monto: $' + resp.monto.toLocaleString('es-CO') + ' | Saldo: $' + resp.saldo.toLocaleString('es-CO');
+                    if (resp.correo_mensaje) {
+                        texto += ' | ' + resp.correo_mensaje;
+                    }
                     Swal.fire({
                         icon: 'success',
                         title: titulo,

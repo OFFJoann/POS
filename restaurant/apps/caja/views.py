@@ -76,9 +76,13 @@ def abrir_caja(request):
     if request.method == 'POST':
         form = AperturaCajaForm(request.POST)
         if form.is_valid():
-            caja = form.save(commit=False)
-            caja.usuario = request.user
-            caja.save()
+            from django.db import transaction
+            from apps.inventario.services import capturar_snapshot_inventario
+            with transaction.atomic():
+                caja = form.save(commit=False)
+                caja.usuario = request.user
+                caja.save()
+                capturar_snapshot_inventario(caja, 'apertura')
             messages.success(request, 'Caja abierta correctamente.')
             return redirect('estado_caja')
     else:
@@ -165,6 +169,9 @@ def cerrar_caja(request):
             diferencia=efectivo_conteo - caja.dinero_esperado,
         )
 
+        from apps.inventario.services import capturar_snapshot_inventario
+        capturar_snapshot_inventario(caja, 'cierre')
+
         if puede_ver:
             messages.success(
                 request,
@@ -196,13 +203,48 @@ def cerrar_caja(request):
 def lista_consolidados(request):
     """
     Muestra el historial de cierres de caja consolidados.
+
+    Por defecto carga solo los últimos 5 consolidados generados para
+    mantener la página liviana. Se puede filtrar por un rango de fechas
+    usando los parámetros `desde` y `hasta` (formato YYYY-MM-DD).
     """
     from collections import defaultdict
+    from datetime import time
     from django.db.models import Sum
     from django.db.models.functions import ExtractHour
+    from django.utils import timezone
     from apps.ventas.models import Pago
 
-    cierres = CierreCaja.objects.all().order_by('-fecha_cierre')
+    def _parsear_fecha(valor):
+        try:
+            return timezone.datetime.strptime(valor, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return None
+
+    hoy = timezone.localdate()
+    desde = _parsear_fecha(request.GET.get('desde'))
+    hasta = _parsear_fecha(request.GET.get('hasta'))
+
+    cierres = CierreCaja.objects.order_by('-fecha_cierre')
+
+    if desde and hasta:
+        if desde > hasta:
+            desde, hasta = hasta, desde
+        desde_dt = timezone.make_aware(timezone.datetime.combine(desde, time.min))
+        hasta_dt = timezone.make_aware(timezone.datetime.combine(hasta, time.max))
+        cierres = cierres.filter(
+            fecha_cierre__gte=desde_dt,
+            fecha_cierre__lte=hasta_dt,
+        )
+    else:
+        cierres = cierres[:5]
+
+    cierres = list(cierres)
+    if cierres:
+        rango_desde = cierres[-1].fecha_cierre.date()
+        rango_hasta = cierres[0].fecha_cierre.date()
+    else:
+        rango_desde, rango_hasta = hoy, hoy
 
     datos_cierres = []
     for c in cierres:
@@ -281,6 +323,10 @@ def lista_consolidados(request):
     return render(request, 'caja/consolidados.html', {
         'datos_cierres': datos_cierres,
         'puede_ver_totales': _puede_ver_totales(request.user),
+        'desde': desde,
+        'hasta': hasta,
+        'rango_desde': rango_desde,
+        'rango_hasta': rango_hasta,
     })
 
 

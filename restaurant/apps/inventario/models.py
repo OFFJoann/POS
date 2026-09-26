@@ -90,3 +90,52 @@ class ConsumoInterno(models.Model):
     def __str__(self):
         empleado_str = str(self.empleado) if self.empleado else 'N/A'
         return f'{self.producto.nombre} x {self.cantidad} - {empleado_str}'
+
+
+class SnapshotInventario(models.Model):
+    """
+    Fotografía del inventario en un momento de la caja.
+
+    Se captura al abrir la caja (``apertura``) y al cerrarla (``cierre``)
+    para poder consultar cómo se veía el inventario en una fecha
+    determinada sin tener que recalcular todos los movimientos.
+    """
+    MOMENTOS = [
+        ('apertura', 'Apertura de caja'),
+        ('cierre', 'Cierre de caja'),
+    ]
+
+    caja = models.ForeignKey(
+        'caja.AperturaCaja', on_delete=models.CASCADE,
+        related_name='snapshots_inventario',
+        verbose_name='Caja'
+    )
+    momento = models.CharField(
+        'Momento', max_length=10, choices=MOMENTOS, db_index=True
+    )
+    producto = models.ForeignKey(
+        'productos.Producto', on_delete=models.PROTECT,
+        related_name='snapshots_inventario',
+        verbose_name='Producto'
+    )
+    cantidad = models.DecimalField(
+        'Cantidad', max_digits=12, decimal_places=2
+    )
+    created_at = models.DateTimeField('Registrado', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Snapshot de inventario'
+        verbose_name_plural = 'Snapshots de inventario'
+        ordering = ['producto__nombre']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['caja', 'momento', 'producto'],
+                name='snapshot_caja_momento_producto_uniq',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['caja', 'momento']),
+        ]
+
+    def __str__(self):
+        return f'{self.producto.nombre} - {self.get_momento_display()} - {self.cantidad}'

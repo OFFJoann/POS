@@ -6,8 +6,32 @@ Contiene la lógica de negocio para movimientos de inventario.
 from collections import defaultdict
 
 from django.db import transaction
-from .models import MovimientoInventario
+from .models import MovimientoInventario, SnapshotInventario
 from apps.productos.models import Producto
+
+
+@transaction.atomic
+def capturar_snapshot_inventario(caja, momento):
+    """
+    Guarda una fotografía del inventario en un momento de la caja.
+
+    Solo se incluyen productos activos (no combos). Se usa al abrir la
+    caja (``momento='apertura'``) y al cerrarla (``momento='cierre'``).
+    """
+    productos = Producto.objects.filter(es_combo=False).exclude(estado='inactivo')
+
+    SnapshotInventario.objects.filter(caja=caja, momento=momento).delete()
+    snapshots = [
+        SnapshotInventario(
+            caja=caja,
+            momento=momento,
+            producto=p,
+            cantidad=p.stock_actual,
+        )
+        for p in productos.iterator()
+    ]
+    SnapshotInventario.objects.bulk_create(snapshots)
+    return len(snapshots)
 
 
 @transaction.atomic

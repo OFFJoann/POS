@@ -147,6 +147,25 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 28800  # 8 horas
 SESSION_SAVE_EVERY_REQUEST = True
 
+# ─── Correo (SMTP) ─────────────────────────────────────────────────────────
+# Configuración para el envío de facturas por correo. Si no se define
+# EMAIL_HOST (p. ej. en desarrollo), se usa la consola para no romper el flujo.
+if os.environ.get('EMAIL_HOST'):
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 'yes')
+DEFAULT_FROM_EMAIL = (
+    os.environ.get('DEFAULT_FROM_EMAIL')
+    or EMAIL_HOST_USER
+    or 'El Choli <noreply@elcholi.local>'
+)
+
 # ─── Seguridad TLS (detrás de nginx) ───────────────────────────────────────
 # Activa cookies seguras y confianza en el proxy de nginx cuando
 # DJANGO_ENABLE_SSL=True en el entorno de la aplicación.
