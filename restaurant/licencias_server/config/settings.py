@@ -42,6 +42,12 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if o.strip()
+]
+
 # ─── Aplicaciones ────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -141,3 +147,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Si queda vacío el token se emite sin firma (el cliente lo rechaza si
 # también tiene secreto configurado).
 LICENCIA_SECRETO = os.environ.get('LICENCIA_SECRETO', '').strip()
+
+# ─── Seguridad TLS (detrás del router multi-POS) ─────────────────────────────
+# Activa cookies seguras y confianza en el proxy cuando el servidor se sirve
+# por HTTPS en el router (DJANGO_ENABLE_SSL=True en el .env).
+_ENABLE_SSL = os.environ.get('DJANGO_ENABLE_SSL', 'False').lower() in ('true', '1', 'yes')
+if _ENABLE_SSL:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = False  # el redireccionamiento lo hace el router
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

@@ -10,6 +10,12 @@ name: el-choli-pos
 networks:
   restaurant:
     driver: bridge
+  # Red compartida con el servidor central de licencias (se crea una sola vez
+  # en el servidor:  docker network create elcholi_net). Así el POS puede
+  # llamar a http://licencias:8000 por nombre de contenedor.
+  elcholi_net:
+    external: true
+    name: ${ELCHOLI_NETWORK:-elcholi_net}
 
 volumes:
   pgdata:                         # datos PostgreSQL (sobreviven al contenedor)
@@ -108,7 +114,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    networks: [restaurant]
+    networks: [restaurant, elcholi_net]
 
   # 4) nginx: estáticos, media y proxy inverso
   nginx:
