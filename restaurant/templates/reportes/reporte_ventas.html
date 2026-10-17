@@ -51,8 +51,8 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small">Mesa</label>
-                    <input type="number" name="mesa" class="form-control" placeholder="# mesa"
+                    <label class="form-label small">Puesto</label>
+                    <input type="number" name="mesa" class="form-control" placeholder="# puesto"
                            value="{{ request.GET.mesa }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -137,7 +137,7 @@
                         <tr>
                             <th># Factura</th>
                             <th>Fecha</th>
-                            <th>Mesa</th>
+                            <th>Puesto</th>
                             <th>Mesero</th>
                             <th>Método</th>
                             <th>Subtotal</th>
@@ -150,7 +150,7 @@
                         <tr>
                             <td>{{ f.numero }}</td>
                             <td>{{ f.created_at|date:'d/m/Y H:i' }}</td>
-                            <td>Mesa {{ f.mesa.numero }}</td>
+                            <td>{{ f.mesa }}</td>
                             <td>{{ f.mesero.nombre }}</td>
                             <td>{{ f.get_metodo_pago_display }}</td>
                             <td>${{ f.subtotal|mil }}</td>

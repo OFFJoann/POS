@@ -78,7 +78,7 @@
       });
       html += '<div class="card mb-2 border-warning">'
         + '<div class="card-header d-flex justify-content-between align-items-center py-2">'
-        + '<strong>Mesa ' + s.mesa + '</strong>'
+        + '<strong>' + s.mesa + '</strong>'
         + '<small class="text-muted">' + s.updated_at + ' · ' + s.solicitante + '</small>'
         + '</div>'
         + '<div class="card-body py-2">'

@@ -77,7 +77,7 @@ class Factura(models.Model):
         ]
 
     def __str__(self):
-        return f'Factura #{self.numero} - Mesa {self.mesa.numero}'
+        return f'Factura #{self.numero} - {self.mesa}'
 
     @property
     def hora(self):

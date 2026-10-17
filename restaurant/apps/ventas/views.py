@@ -163,7 +163,7 @@ def buscar_facturas(request):
     data = [{
         'id': f.id,
         'numero': f.numero,
-        'mesa': f.mesa.numero,
+        'mesa': str(f.mesa),
         'mesero': str(f.mesero),
         'total': float(f.total),
         'metodo_pago': f.get_metodo_pago_display(),

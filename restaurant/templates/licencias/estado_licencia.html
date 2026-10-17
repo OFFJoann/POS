@@ -1,0 +1,73 @@
+{% extends 'base/base.html' %}
+{% block title %}Licencia{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-{{ licencia.color }} text-white">
+                    <h5 class="mb-0"><i class="bi bi-key-fill"></i> Estado de la licencia</h5>
+                </div>
+                <div class="card-body">
+                    <p class="lead {{ licencia.bloqueado|yesno:'text-danger,' }}">
+                        {{ licencia.mensaje }}
+                    </p>
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Estado</th>
+                                <td>
+                                    <span class="badge bg-{{ licencia.color }}">
+                                        {{ licencia.estado }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Código</th>
+                                <td><code>{{ licencia.codigo|default:'—' }}</code></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Cliente</th>
+                                <td>{{ licencia.cliente|default:'—' }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Vigencia</th>
+                                <td>
+                                    {% if licencia.vigencia_hasta %}
+                                        {{ licencia.vigencia_hasta|date:"d/m/Y" }}
+                                        <span class="text-muted">({{ licencia.dias_restantes }} días restantes)</span>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Límite de vendedores</th>
+                                <td>{{ licencia.limite_vendedores|default:'Sin límite' }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Última validación</th>
+                                <td>{{ licencia.motivo }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {% if licencia.bloqueado %}
+                    <div class="alert alert-danger">
+                        <i class="bi bi-lock-fill"></i> El sistema está en <strong>modo solo lectura</strong>:
+                        no se pueden cobrar pedidos, abrir/cerrar caja ni crear vendedores
+                        hasta renovar la licencia.
+                    </div>
+                    {% endif %}
+                    <form method="post" action="{% url 'revalidar_licencia' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-arrow-repeat"></i> Revalidar con el servidor
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

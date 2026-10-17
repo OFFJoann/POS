@@ -1,4 +1,10 @@
 {% load permisos_tags %}
+{% if licencia.estado != 'activa' %}
+<div class="alert alert-{{ licencia.color }} rounded-0 text-center mb-0 py-2" role="alert">
+    <i class="bi bi-key-fill"></i> {{ licencia.mensaje }}
+    <a href="{% url 'estado_licencia' %}" class="alert-link"><i class="bi bi-info-circle"></i> Ver detalle</a>
+</div>
+{% endif %}
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}">
@@ -16,7 +22,7 @@
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'vista_mesas' %}">
-                        <i class="bi bi-grid-3x3-gap-fill"></i> Mesas
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Facturar
                     </a>
                 </li>
                 {% if user|es_receptor %}

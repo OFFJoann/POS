@@ -1,7 +1,7 @@
 {% extends 'base/base.html' %}
 {% load static custom_filters permisos_tags %}
 
-{% block title %}Mesa {{ pedido.mesa.numero }}{% endblock %}
+{% block title %}{{ pedido.mesa.get_tipo_display }} {{ pedido.mesa.numero }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
@@ -14,7 +14,7 @@
                         <i class="bi bi-arrow-left"></i> Volver
                     </a>
                     <h3 class="d-inline ms-2">
-                        Mesa {{ pedido.mesa.numero }}
+                        {{ pedido.mesa.get_tipo_display }} {{ pedido.mesa.numero }}
                         <span class="badge estado-{{ pedido.mesa.estado }} fs-6">
                             {{ pedido.mesa.get_estado_display }}
                         </span>
@@ -46,6 +46,22 @@
         <!-- Panel de productos (izquierda) -->
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm mb-3">
+                {% if es_caja %}
+                <div class="card-header bg-dark py-2">
+                    <form method="post" action="{% url 'agregar_por_referencia' pedido.id %}" id="form-referencia">
+                        {% csrf_token %}
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                            <input type="text" name="referencia" id="input-referencia"
+                                   class="form-control" autocomplete="off"
+                                   placeholder="Referencia o nombre + Enter para agregar">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-plus-lg"></i> Agregar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
                 <div class="card-header bg-white py-2">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -469,6 +485,16 @@
 <script>
 var PERM_ELIMINAR_PRODUCTOS = {% if user|puede:"eliminar_productos" %}true{% else %}false{% endif %};
 $(document).ready(function() {
+    {% if es_caja %}
+    // En modo caja el foco vive siempre en el input de referencia:
+    // tras cada alta la página se recarga (?foco=ref) y se vuelve a enfocar.
+    var inputRef = document.getElementById('input-referencia');
+    if (inputRef) {
+        inputRef.focus();
+        inputRef.select();
+    }
+    {% endif %}
+
     // Desactiva el focus trap de los modales Bootstrap abiertos para que los
     // inputs del SweetAlert (que viven en <body>) puedan recibir foco/teclado.
     function desactivarTrapsDeModales() {
@@ -646,6 +672,8 @@ $(document).ready(function() {
 
 
     // ── Cobrar con AJAX + chulito ──
+    var esCaja = {% if es_caja %}true{% else %}false{% endif %};
+    var urlCaja = '{% url "abrir_pedido" pedido.mesa.id %}';
     $('#formCobrar').on('submit', function(e) {
         e.preventDefault();
         var form = $(this);
@@ -661,7 +689,7 @@ $(document).ready(function() {
             success: function(resp) {
                 bootstrap.Modal.getInstance(document.getElementById('modalCobrar')).hide();
                 if (resp.ok) {
-                    urlRedir = '/ventas/factura/' + resp.factura_id + '/';
+                    urlRedir = esCaja ? urlCaja : '/ventas/factura/' + resp.factura_id + '/';
                     Swal.fire({
                         icon: 'success',
                         title: 'Cobro exitoso',
@@ -699,9 +727,9 @@ $(document).ready(function() {
             success: function(resp) {
                 bootstrap.Modal.getInstance(document.getElementById('modalPagoParcial')).hide();
                 if (resp.ok) {
-                    var titulo = resp.pagado ? 'Mesa pagada' : 'Pago parcial registrado';
+                    var titulo = resp.pagado ? 'Pagado por completo' : 'Pago parcial registrado';
                     var texto = resp.pagado
-                        ? 'La mesa ' + resp.mesa + ' quedó pagada por completo.'
+                        ? resp.mesa + ' quedó pagada por completo.'
                         : 'Monto: $' + resp.monto.toLocaleString('es-CO') + ' | Saldo: $' + resp.saldo.toLocaleString('es-CO');
                     if (resp.correo_mensaje) {
                         texto += ' | ' + resp.correo_mensaje;
@@ -714,7 +742,7 @@ $(document).ready(function() {
                         showConfirmButton: false,
                     }).then(function() {
                         if (resp.pagado) {
-                            window.location.href = '/ventas/factura/' + resp.factura_id + '/';
+                            window.location.href = esCaja ? urlCaja : '/ventas/factura/' + resp.factura_id + '/';
                         } else {
                             window.location.reload();
                         }

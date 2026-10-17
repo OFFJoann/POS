@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Licencia de este POS</h1>
+
+{% if not hay_secreto %}
+<div class="messagelist">
+    <div class="warning">LICENCIA_SECRETO no está configurado en este POS.
+    Defínelo en <code>.env</code> y reinicia el servicio; sin él el POS no puede
+    validar la firma y la licencia queda como <em>invalida</em>.</div>
+</div>
+{% endif %}
+
+<table>
+    <tr>
+        <th style="width:240px">LICENCIA_SECRETO (este POS)</th>
+        <td>
+            {% if hay_secreto %}
+                <code id="secreto" data-secreto="{{ secreto }}">----------------------------</code>
+                <button type="button" class="button" id="btn-secreto">Mostrar</button>
+            {% else %}
+                <strong>NO CONFIGURADO</strong>
+            {% endif %}
+        </td>
+    </tr>
+    <tr>
+        <th>Huella (SHA-256, 12 caracteres)</th>
+        <td><code id="huella">{{ huella|default:"—" }}</code></td>
+    </tr>
+    <tr>
+        <th>Código de licencia</th>
+        <td><code>{{ licencia.codigo|default:"—" }}</code> — {{ licencia.cliente|default:"sin cliente" }}</td>
+    </tr>
+    <tr>
+        <th>Estado</th>
+        <td>{{ licencia.estado }} {{ licencia.mensaje }}</td>
+    </tr>
+    <tr>
+        <th>Válida hasta</th>
+        <td>{{ licencia.vigencia_hasta|default:"—" }}</td>
+    </tr>
+    <tr>
+        <th>Límite de vendedores</th>
+        <td>{{ licencia.limite_vendedores }}</td>
+    </tr>
+</table>
+
+<p>
+    Esta huella debe coincidir con la del servidor central
+    (<em>Configuración del servidor</em> en su admin). Si no coinciden,
+    este POS rechaza la licencia por firma inválida.
+</p>
+
+<script>
+document.getElementById('btn-secreto')?.addEventListener('click', function () {
+    var box = document.getElementById('secreto');
+    var visible = box.textContent === box.dataset.secreto;
+    box.textContent = visible ? '----------------------------' : box.dataset.secreto;
+    this.textContent = visible ? 'Mostrar' : 'Ocultar';
+});
+</script>
+{% endblock %}

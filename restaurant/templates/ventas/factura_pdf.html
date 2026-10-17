@@ -30,7 +30,7 @@
     <div class="info">
         <div><strong>Fecha:</strong> {{ factura.created_at|date:'d/m/Y' }}</div>
         <div><strong>Hora:</strong> {{ factura.created_at|date:'H:i:s' }}</div>
-        <div><strong>Mesa:</strong> {{ factura.mesa.numero }}</div>
+        <div><strong>{{ factura.mesa.get_tipo_display }}:</strong> {{ factura.mesa.numero }}</div>
         <div><strong>Mesero:</strong> {{ factura.mesero.nombre }} {{ factura.mesero.apellidos }}</div>
         <div><strong>Método de pago:</strong> {{ factura.get_metodo_pago_display }}</div>
     </div>

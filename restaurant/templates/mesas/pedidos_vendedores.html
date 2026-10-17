@@ -29,7 +29,7 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Mesa</th>
+                            <th>Puesto</th>
                             <th>Solicitante</th>
                             <th>Fecha</th>
                             <th>Productos</th>
@@ -40,7 +40,7 @@
                     <tbody>
                         {% for s in solicitudes %}
                         <tr>
-                            <td><strong>Mesa {{ s.mesa.numero }}</strong></td>
+                            <td><strong>{{ s.mesa }}</strong></td>
                             <td>{{ s.solicitante|default:'—' }}</td>
                             <td>{{ s.created_at|date:'d/m H:i' }}</td>
                             <td>

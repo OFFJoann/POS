@@ -1,0 +1,98 @@
+{% load custom_filters permisos_tags %}
+{% with pedido_activo=mesa.pedidos_activos.0 %}
+<div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    {% if mesa.estado == 'pagada' or mesa.estado == 'cerrada' %}
+    <div class="card mesa-card mesa-{{ mesa.estado }}" data-mesa-id="{{ mesa.id }}">
+        <div class="card-body text-center py-4">
+            <h4 class="card-title mb-2">
+                {{ mesa.get_tipo_display }} {{ mesa.numero }}
+            </h4>
+            <div class="mesa-estado-badge mb-2">
+                <span class="badge fs-6 estado-{{ mesa.estado }}">
+                    {{ mesa.get_estado_display }}
+                </span>
+            </div>
+            <a href="{% url 'liberar_mesa' mesa.id %}"
+               class="btn btn-sm btn-outline-light mt-2"
+               onclick="return confirm('¿Liberar {{ mesa }}?')">
+                <i class="bi bi-arrow-counterclockwise"></i> Liberar
+            </a>
+        </div>
+    </div>
+    {% else %}
+    {% if mesa.es_caja %}
+        {% if mesa.estado == 'libre' %}
+        <div class="card mesa-card mesa-libre{% if not user|puede:"facturar" %} opacity-50{% endif %}" data-mesa-id="{{ mesa.id }}">
+            <div class="card-body text-center py-4">
+                <h4 class="card-title mb-2">
+                    {{ mesa.get_tipo_display }} {{ mesa.numero }}
+                </h4>
+                <div class="mesa-estado-badge mb-2">
+                    <span class="badge fs-6 estado-libre">{{ mesa.get_estado_display }}</span>
+                </div>
+                {% if user|puede:"facturar" %}
+                <a href="{% url 'abrir_pedido' mesa.id %}"
+                   class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="bi bi-cash-register"></i> Asignar caja
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+            {% if mesa.id in cajas_gestionables %}
+            <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none text-reset">
+            {% endif %}
+            <div class="card mesa-card mesa-{{ mesa.estado }}" data-mesa-id="{{ mesa.id }}">
+                <div class="card-body text-center py-4">
+                    <h4 class="card-title mb-2">
+                        {{ mesa.get_tipo_display }} {{ mesa.numero }}
+                    </h4>
+                    <div class="mesa-estado-badge mb-2">
+                        <span class="badge fs-6 estado-{{ mesa.estado }}">{{ mesa.get_estado_display }}</span>
+                    </div>
+                    {% if pedido_activo %}
+                        <small class="text-muted d-block">
+                            <i class="bi bi-person"></i> {{ pedido_activo.mesero.nombre }}
+                        </small>
+                    {% endif %}
+                </div>
+            </div>
+            {% if mesa.id in cajas_gestionables %}
+            </a>
+            <div class="mt-2">
+                <a href="{% url 'liberar_caja' mesa.id %}" class="btn btn-sm btn-outline-danger w-100"
+                   onclick="return confirm('¿Liberar {{ mesa }}?')">
+                    <i class="bi bi-arrow-counterclockwise"></i> Liberar caja
+                </a>
+            </div>
+            {% endif %}
+        {% endif %}
+    {% else %}
+    {% if user|puede:"facturar" %}
+    <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none">
+    {% endif %}
+        <div class="card mesa-card mesa-{{ mesa.estado }}{% if not user|puede:"facturar" %} opacity-50{% endif %}" data-mesa-id="{{ mesa.id }}">
+            <div class="card-body text-center py-4">
+                <h4 class="card-title mb-2">{{ mesa.get_tipo_display }} {{ mesa.numero }}</h4>
+                <div class="mesa-estado-badge mb-2">
+                    <span class="badge fs-6 estado-{{ mesa.estado }}">
+                        {{ mesa.get_estado_display }}
+                    </span>
+                </div>
+                {% if pedido_activo and mesa.estado != 'libre' %}
+                    <small class="text-muted d-block">
+                        <i class="bi bi-person"></i> {{ pedido_activo.mesero.nombre }}
+                    </small>
+                    <small class="text-muted d-block">
+                        ${{ pedido_activo.total|mil }}
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    {% if user|puede:"facturar" %}
+    </a>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+</div>
+{% endwith %}

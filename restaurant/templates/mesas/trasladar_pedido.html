@@ -1,6 +1,6 @@
 {% extends 'base/base.html' %}
 
-{% block title %}Trasladar Pedido - Mesa {{ pedido.mesa.numero }}{% endblock %}
+{% block title %}Trasladar Pedido - {{ pedido.mesa }}{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -13,7 +13,7 @@
                 <div class="card-body">
                     <p class="text-muted">
                         Pedido <strong>#{{ pedido.id }}</strong> está en la
-                        <strong>Mesa {{ pedido.mesa.numero }}</strong>.
+                        <strong>{{ pedido.mesa }}</strong>.
                         Selecciona la mesa destino:
                     </p>
                     <form method="post">
@@ -23,7 +23,7 @@
                             <select name="nueva_mesa" class="form-select form-select-lg" required>
                                 <option value="">-- Seleccionar mesa --</option>
                                 {% for mesa in mesas_disponibles %}
-                                <option value="{{ mesa.id }}">Mesa {{ mesa.numero }}</option>
+                                <option value="{{ mesa.id }}">{{ mesa }}</option>
                                 {% endfor %}
                             </select>
                         </div>

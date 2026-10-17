@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 from decimal import Decimal
 from collections import OrderedDict
@@ -68,15 +69,20 @@ def _tiene_vendedor(user):
     return hasattr(user, 'vendedor') and user.vendedor.activo
 
 
+def _es_admin(user):
+    """True si el usuario es administrador (staff o superuser)."""
+    return getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)
+
+
 @login_required
 def vista_mesas(request):
     """
-    Vista principal de mesas.
+    Vista principal de facturación.
 
-    Muestra todas las mesas como tarjetas grandes con
-    colores según su estado.
+    Muestra las cajas primero y luego las mesas como tarjetas grandes
+    con colores según su estado.
     """
-    mesas = Mesa.objects.filter(activa=True).order_by('numero').prefetch_related(
+    puestos = Mesa.objects.filter(activa=True).order_by('tipo', 'numero').prefetch_related(
         Prefetch(
             'pedidos',
             queryset=Pedido.objects.filter(estado='activo').select_related('mesero'),
@@ -84,8 +90,22 @@ def vista_mesas(request):
         )
     )
     categorias = Categoria.objects.filter(activo=True).order_by('orden', 'nombre')
+    vendedor = getattr(request.user, 'vendedor', None)
+    # Cajas que el usuario actual puede gestionar (entrar / liberar): suyas o de admin.
+    cajas_gestionables = set()
+    if _es_admin(request.user):
+        cajas_gestionables = {p.id for p in puestos if p.tipo == 'caja'}
+    elif vendedor:
+        for p in puestos:
+            if p.tipo != 'caja':
+                continue
+            pedido_activo = p.pedidos_activos[0] if p.pedidos_activos else None
+            if pedido_activo and pedido_activo.mesero_id == vendedor.id:
+                cajas_gestionables.add(p.id)
     return render(request, 'mesas/vista_mesas.html', {
-        'mesas': mesas,
+        'cajas': [p for p in puestos if p.tipo == 'caja'],
+        'mesas': [p for p in puestos if p.tipo != 'caja'],
+        'cajas_gestionables': cajas_gestionables,
         'categorias': categorias,
     })
 
@@ -93,14 +113,17 @@ def vista_mesas(request):
 @login_required
 @admin_required
 def gestion_mesas(request):
-    """Lista todas las mesas y permite crear nuevas."""
-    mesas = Mesa.objects.all().order_by('numero')
+    """Lista todas las mesas y cajas y permite crear nuevas."""
+    mesas = Mesa.objects.all().order_by('tipo', 'numero')
 
     if request.method == 'POST':
         form = MesaForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Mesa {form.cleaned_data["numero"]} creada.')
+            etiqueta = 'Caja' if form.cleaned_data['tipo'] == 'caja' else 'Mesa'
+            messages.success(
+                request,
+                f'{etiqueta} {form.cleaned_data["numero"]} creada.')
             return redirect('gestion_mesas')
     else:
         form = MesaForm()
@@ -117,10 +140,10 @@ def eliminar_mesa(request, mesa_id):
     """Elimina una mesa (solo si está libre)."""
     mesa = get_object_or_404(Mesa, pk=mesa_id)
     if mesa.estado != 'libre':
-        messages.error(request, f'No se puede eliminar la Mesa {mesa.numero} porque no está libre.')
+        messages.error(request, f'No se puede eliminar {mesa} porque no está libre.')
         return redirect('gestion_mesas')
     Mesa.objects.filter(pk=mesa_id).delete()
-    messages.success(request, f'Mesa {mesa.numero} eliminada.')
+    messages.success(request, f'{mesa} eliminada.')
     return redirect('gestion_mesas')
 
 
@@ -164,20 +187,27 @@ def abrir_pedido(request, mesa_id):
     # Redirigir al pedido activo o con pago parcial si existe
     pedido_existente = mesa.pedidos.filter(estado__in=['activo', 'parcial']).first()
     if pedido_existente:
+        # Una caja asignada solo la puede usar el usuario asignado (o admin).
+        if mesa.tipo == 'caja' and not _es_admin(request.user):
+            if pedido_existente.mesero_id != vendedor.id:
+                messages.warning(
+                    request,
+                    f'{mesa} está asignada a {pedido_existente.mesero.nombre}.')
+                return redirect('vista_mesas')
         return redirect('detalle_pedido', pedido_id=pedido_existente.id)
 
     # Solo se puede abrir pedido nuevo si la mesa está libre
     if mesa.estado not in ('libre',):
         mensajes = {
-            'pagada': 'Esta mesa ya fue pagada. Límpiala para abrir un nuevo pedido.',
-            'cerrada': 'Esta mesa está cerrada.',
-            'activo': 'Ya hay un pedido activo en esta mesa.',
+            'pagada': f'{mesa} ya fue pagada. Límpiala para abrir un nuevo pedido.',
+            'cerrada': f'{mesa} está cerrada.',
+            'activo': f'Ya hay un pedido activo en {mesa}.',
         }
-        messages.warning(request, mensajes.get(mesa.estado, 'No se puede abrir pedido en esta mesa.'))
+        messages.warning(request, mensajes.get(mesa.estado, f'No se puede abrir pedido en {mesa}.'))
         return redirect('vista_mesas')
 
     pedido = crear_pedido(mesa, vendedor)
-    messages.success(request, f'Pedido abierto en Mesa {mesa.numero}')
+    messages.success(request, f'Pedido abierto en {mesa}')
     return redirect('detalle_pedido', pedido_id=pedido.id)
 
 
@@ -239,6 +269,7 @@ def detalle_pedido(request, pedido_id):
         'form_producto': form_producto,
         'form_descuento': form_descuento,
         'vendedores': vendedores,
+        'es_caja': pedido.mesa.tipo == 'caja',
     })
 
 
@@ -324,6 +355,47 @@ def agregar_producto(request, pedido_id):
             messages.error(request, 'Producto no encontrado.')
 
     return redirect('detalle_pedido', pedido_id=pedido_id)
+
+
+@login_required
+def agregar_por_referencia(request, pedido_id):
+    """
+    Agrega un producto al pedido buscándolo por código o nombre.
+
+    Pensado para el modo caja: el cajero escribe una referencia y con
+    Enter se añade el producto exacto al pedido, sin salir de la
+    pantalla de digitación.
+    """
+    pedido = get_object_or_404(Pedido, pk=pedido_id)
+
+    if pedido.estado not in ('activo', 'parcial'):
+        messages.error(request, 'No se pueden agregar productos a un pedido pagado o cerrado.')
+        return redirect('detalle_pedido', pedido_id=pedido_id)
+
+    if not _autorizado_pedido(request.user, pedido, 'facturar', request):
+        return redirect('vista_mesas')
+
+    if request.method == 'POST':
+        texto = (request.POST.get('referencia') or '').strip()
+        if not texto:
+            messages.warning(request, 'Escribe una referencia o nombre de producto.')
+            return redirect(reverse('detalle_pedido', args=[pedido_id]) + '?foco=ref')
+
+        producto = (
+            Producto.objects.filter(estado='activo', codigo__iexact=texto).first()
+            or Producto.objects.filter(estado='activo', nombre__iexact=texto).first()
+            or Producto.objects.filter(estado='activo', nombre__icontains=texto).first()
+        )
+        if not producto:
+            messages.error(request, f'No se encontró ningún producto con "{texto}".')
+            return redirect(reverse('detalle_pedido', args=[pedido_id]) + '?foco=ref')
+
+        detalle = agregar_producto_a_pedido(pedido, producto.pk)
+        vendedor = getattr(request.user, 'vendedor', None)
+        enviar_a_caja(pedido, detalle, vendedor)
+        messages.success(request, f'{producto.nombre} agregado.')
+
+    return redirect(reverse('detalle_pedido', args=[pedido_id]) + '?foco=ref')
 
 
 @login_required
@@ -512,19 +584,19 @@ def cobrar_pedido(request, pedido_id):
                     'factura_id': factura.id if factura else 0,
                     'numero': factura.numero if factura else 0,
                     'cambio': 0,
-                    'mesa': pedido.mesa.numero,
+                    'mesa': str(pedido.mesa),
                     'pagado': True,
                     'correo_enviado': envio_ok,
                     'correo_mensaje': mensaje_envio,
                 })
             if factura:
-                msg = (f'Mesa {pedido.mesa.numero} libre. Factura #{factura.numero} '
+                msg = (f'{pedido.mesa} libre. Factura #{factura.numero} '
                        f'pagada por completo con pagos parciales.')
                 if mensaje_envio:
                     msg += ' ' + mensaje_envio
                 messages.success(request, msg)
                 return redirect('ver_factura', factura_id=factura.id)
-            messages.success(request, f'Mesa {pedido.mesa.numero} libre.')
+            messages.success(request, f'{pedido.mesa} libre.')
             return redirect('vista_mesas')
 
         if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
@@ -610,12 +682,12 @@ def cobrar_pedido(request, pedido_id):
                 'factura_id': factura.id,
                 'numero': factura.numero,
                 'cambio': float(cambio),
-                'mesa': pedido.mesa.numero,
+                'mesa': str(pedido.mesa),
                 'correo_enviado': envio_ok,
                 'correo_mensaje': mensaje_envio,
             })
         msg = (f'Factura #{factura.numero} generada. Cambio: ${cambio}. '
-               f'Mesa {pedido.mesa.numero} libre.')
+               f'{pedido.mesa} libre.')
         if mensaje_envio:
             msg += ' ' + mensaje_envio
         messages.success(request, msg)
@@ -741,12 +813,12 @@ def pago_parcial(request, pedido_id):
                 'monto': float(monto_pago),
                 'saldo': float(saldo_restante),
                 'pagado': saldo_restante <= 0,
-                'mesa': pedido.mesa.numero,
+                'mesa': str(pedido.mesa),
                 'correo_enviado': envio_ok,
                 'correo_mensaje': mensaje_envio,
             })
         if saldo_restante <= 0:
-            msg = (f'Mesa {pedido.mesa.numero} pagada por completo con pagos parciales. '
+            msg = (f'{pedido.mesa} pagada por completo con pagos parciales. '
                    f'Factura #{factura.numero}.')
             if mensaje_envio:
                 msg += ' ' + mensaje_envio
@@ -786,7 +858,7 @@ def cancelar_pedido(request, pedido_id):
     pedido.delete()
     mesa.estado = 'libre'
     mesa.save()
-    messages.success(request, f'Pedido cancelado. Mesa {mesa.numero} libre.')
+    messages.success(request, f'Pedido cancelado. {mesa} libre.')
     return redirect('vista_mesas')
 
 
@@ -803,7 +875,46 @@ def liberar_mesa(request, mesa_id):
         return redirect('vista_mesas')
     mesa.estado = 'libre'
     mesa.save()
-    messages.success(request, f'Mesa {mesa.numero} liberada.')
+    messages.success(request, f'{mesa} liberada.')
+    return redirect('vista_mesas')
+
+
+@login_required
+@permiso_required('facturar')
+def liberar_caja(request, mesa_id):
+    """
+    Libera una caja asignada.
+
+    Solo el usuario al que se le asignó la caja (o un administrador) puede
+    liberarla. La caja debe estar vacía (sin pagos registrados).
+    """
+    mesa = get_object_or_404(Mesa, pk=mesa_id, activa=True, tipo='caja')
+    pedido = mesa.pedidos.filter(estado__in=['activo', 'parcial']).first()
+
+    vendedor = getattr(request.user, 'vendedor', None)
+    if pedido and not _es_admin(request.user):
+        if not vendedor or pedido.mesero_id != vendedor.id:
+            messages.error(request, f'No puedes liberar {mesa}: está asignada a otro usuario.')
+            return redirect('vista_mesas')
+
+    if pedido:
+        if pedido.estado == 'parcial' or Factura.objects.filter(pedido=pedido).exists():
+            messages.error(
+                request,
+                f'No puedes liberar {mesa}: tiene un pago registrado. '
+                'Cobra o cancela el pedido primero.')
+            return redirect('detalle_pedido', pedido_id=pedido.id)
+        if pedido.detalles.exists():
+            messages.error(
+                request,
+                f'No puedes liberar {mesa}: tiene productos. '
+                'Cóbralos o cancela el pedido primero.')
+            return redirect('detalle_pedido', pedido_id=pedido.id)
+        pedido.delete()
+
+    mesa.estado = 'libre'
+    mesa.save()
+    messages.success(request, f'{mesa} liberada.')
     return redirect('vista_mesas')
 
 
@@ -990,7 +1101,7 @@ def solicitudes_pendientes_api(request):
         data.append({
             'id': s.id,
             'pedido_id': s.pedido_id,
-            'mesa': s.mesa.numero,
+            'mesa': str(s.mesa),
             'solicitante': str(s.solicitante) if s.solicitante else '—',
             'created_at': s.created_at.strftime('%H:%M'),
             'updated_at': s.updated_at.strftime('%H:%M:%S'),
@@ -1106,7 +1217,7 @@ def trasladar_pedido(request, pedido_id):
 
             messages.success(
                 request,
-                f'Pedido trasladado de Mesa {mesa_anterior.numero} a Mesa {nueva_mesa.numero}.'
+                f'Pedido trasladado de {mesa_anterior} a {nueva_mesa}.'
             )
             return redirect('detalle_pedido', pedido_id=pedido_id)
 

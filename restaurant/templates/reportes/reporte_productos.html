@@ -136,7 +136,7 @@
                                 <tr>
                                     <th>Producto</th>
                                     <th class="text-end">Cantidad</th>
-                                    <th>Mesa</th>
+                                    <th>Puesto</th>
                                     <th>Hora</th>
                                 </tr>
                             </thead>
@@ -145,7 +145,7 @@
                                 <tr>
                                     <td>{{ c.producto.nombre }}</td>
                                     <td class="text-end fw-bold">{{ c.cantidad|mil }}</td>
-                                    <td>Mesa {{ c.pedido.mesa.numero }}</td>
+                                    <td>{{ c.pedido.mesa }}</td>
                                     <td>{{ c.created_at|date:'H:i' }}</td>
                                 </tr>
                                 {% empty %}

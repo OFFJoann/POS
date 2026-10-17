@@ -26,7 +26,7 @@
             <tr>
                 <th># Factura</th>
                 <th>Fecha</th>
-                <th>Mesa</th>
+                <th>Puesto</th>
                 <th>Mesero</th>
                 <th>Método</th>
                 <th class="text-end">Total</th>
@@ -37,7 +37,7 @@
             <tr>
                 <td>{{ f.numero }}</td>
                 <td>{{ f.created_at|date:'d/m/Y' }}</td>
-                <td>{{ f.mesa.numero }}</td>
+                <td>{{ f.mesa }}</td>
                 <td>{{ f.mesero.nombre }}</td>
                 <td>{{ f.get_metodo_pago_display }}</td>
                 <td class="text-end">${{ f.total|mil }}</td>

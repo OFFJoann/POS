@@ -100,7 +100,7 @@
 
     // ─── Auto-refresh de mesas (cada 10 segundos) ────────────────
     function setupTableAutoRefresh() {
-        var container = $('#contenedor-mesas');
+        var container = $('#contenedor-mesas, #contenedor-cajas');
         if (container.length === 0) return;
 
         function refreshMesas() {
@@ -114,10 +114,10 @@
                             var card = container.find('[data-mesa-id="' + mesa.id + '"]');
                             if (card.length) {
                                 // Actualizar estado visual
-                                card.removeClass('mesa-libre mesa-activo mesa-parcial mesa-pagada mesa-cerrada')
+                                card.removeClass('mesa-libre mesa-asignada mesa-activo mesa-parcial mesa-pagada mesa-cerrada')
                                     .addClass('mesa-' + mesa.estado);
                                 card.find('.mesa-estado-badge span')
-                                    .removeClass('estado-libre estado-activo estado-parcial estado-pagada estado-cerrada')
+                                    .removeClass('estado-libre estado-asignada estado-activo estado-parcial estado-pagada estado-cerrada')
                                     .addClass('estado-' + mesa.estado)
                                     .text(mesa.estado_display);
                             }

@@ -36,7 +36,9 @@ def crear_pedido(mesa, mesero):
         estado='activo',
     )
     if mesa.estado == 'libre':
-        mesa.estado = 'activo'
+        # Una caja asignada queda en estado 'asignada' (no 'activo') para
+        # distinguir el puesto de caja de una mesa con pedido en curso.
+        mesa.estado = 'asignada' if mesa.tipo == 'caja' else 'activo'
         mesa.save()
     return pedido
 
@@ -203,16 +205,16 @@ def enviar_a_caja(pedido, detalle, solicitante):
             pedido=pedido,
             mesa=pedido.mesa,
             solicitante=solicitante,
-            mensaje=f'Nuevo pedido - Mesa {pedido.mesa.numero}',
+            mensaje=f'Nuevo pedido - {pedido.mesa}',
             version=1,
         )
     else:
         solicitud.version += 1
         if not solicitud.detalles.exists():
-            solicitud.mensaje = f'Nuevo pedido - Mesa {pedido.mesa.numero}'
+            solicitud.mensaje = f'Nuevo pedido - {pedido.mesa}'
         else:
             solicitud.mensaje = (
-                f'Se agregaron más productos - Mesa {pedido.mesa.numero}'
+                f'Se agregaron más productos - {pedido.mesa}'
             )
         solicitud.save(update_fields=['mensaje', 'version', 'updated_at'])
 

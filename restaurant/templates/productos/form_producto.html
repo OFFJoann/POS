@@ -17,7 +17,16 @@
                             {% for field in form %}
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">{{ field.label }}</label>
+                                {% if field.name == 'codigo' %}
+                                <div class="input-group">
+                                    {{ field }}
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-auto-codigo" title="Generar código automático">
+                                        <i class="bi bi-upc-scan"></i> Auto
+                                    </button>
+                                </div>
+                                {% else %}
                                 {{ field }}
+                                {% endif %}
                                 {% if field.help_text %}
                                 <div class="form-text small">{{ field.help_text }}</div>
                                 {% endif %}
@@ -105,6 +114,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    var btnAuto = document.getElementById('btn-auto-codigo');
+    if (btnAuto) {
+        btnAuto.addEventListener('click', function () {
+            btnAuto.disabled = true;
+            fetch('{% url "siguiente_codigo_producto" %}', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.codigo) {
+                    document.getElementById('id_codigo').value = data.codigo;
+                }
+            })
+            .catch(function () {})
+            .finally(function () { btnAuto.disabled = false; });
+        });
+    }
+
     var check = document.getElementById('id_es_combo');
     var seccion = document.getElementById('seccion-combo');
     var forms = document.getElementById('combo-forms');

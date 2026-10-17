@@ -133,19 +133,19 @@
                 <!-- Facturas por mesa -->
                 <div class="p-2 p-sm-3">
                     <h6 class="text-muted mb-2 mb-sm-3 small">
-                        <i class="bi bi-table"></i> Facturas por mesa
+                        <i class="bi bi-table"></i> Facturas por mesa/caja
                     </h6>
                     {% for mesa in item.mesas %}
                     <div class="card border mb-2">
                         <div class="card-header bg-light py-1 py-sm-2 d-flex justify-content-between align-items-center"
-                             style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#mesa-{{ uid }}-{{ mesa.numero }}">
+                             style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#mesa-{{ uid }}-{{ mesa.tipo }}-{{ mesa.numero }}">
                             <span class="fw-bold small">
-                                <i class="bi bi-grid-3x3-gap"></i> Mesa {{ mesa.numero }}
+                                <i class="bi bi-grid-3x3-gap"></i> {{ mesa.tipo_display }} {{ mesa.numero }}
                                 <span class="text-muted d-none d-sm-inline">— {{ mesa.facturas|length }} factura{{ mesa.facturas|length|pluralize }}</span>
                             </span>
                             <span class="fw-bold text-primary small">${{ mesa.total|mil }}</span>
                         </div>
-                        <div class="collapse show" id="mesa-{{ uid }}-{{ mesa.numero }}">
+                        <div class="collapse show" id="mesa-{{ uid }}-{{ mesa.tipo }}-{{ mesa.numero }}">
                             <div class="card-body p-0">
                                 <div class="table-responsive">
                                     <table class="table table-sm mb-0 consol-table" style="table-layout:fixed; width:100%;">

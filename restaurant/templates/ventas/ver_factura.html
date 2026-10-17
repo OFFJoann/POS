@@ -37,8 +37,8 @@
                             <p class="mb-0">{{ factura.created_at|date:'H:i:s' }}</p>
                         </div>
                         <div class="col-6">
-                            <small class="text-muted">Mesa:</small>
-                            <p class="mb-0">Mesa {{ factura.mesa.numero }}</p>
+                            <small class="text-muted">{{ factura.mesa.get_tipo_display }}:</small>
+                            <p class="mb-0">{{ factura.mesa.numero }}</p>
                         </div>
                         <div class="col-6 text-end">
                             <small class="text-muted">Mesero:</small>

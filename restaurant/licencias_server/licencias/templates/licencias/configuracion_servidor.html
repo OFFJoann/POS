@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Configuración del servidor de licencias</h1>
+
+{% if not hay_secreto %}
+<div class="messagelist">
+    <div class="warning">LICENCIA_SECRETO no está configurado. Las licencias se
+    emitirán sin firma y los POS con secreto configurado las rechazarán.
+    Defínelo en <code>licencias_server/.env</code> y reinicia el servicio.</div>
+</div>
+{% endif %}
+
+<table>
+    <tr>
+        <th style="width:220px">LICENCIA_SECRETO</th>
+        <td>
+            {% if hay_secreto %}
+                <code id="secreto" data-secreto="{{ secreto }}">----------------------------</code>
+                <button type="button" class="button" id="btn-secreto">Mostrar</button>
+            {% else %}
+                <strong>NO CONFIGURADO</strong>
+            {% endif %}
+        </td>
+    </tr>
+    <tr>
+        <th>Huella (SHA-256, 12 caracteres)</th>
+        <td><code id="huella">{{ huella|default:"—" }}</code></td>
+    </tr>
+    <tr>
+        <th>Licencias registradas</th>
+        <td>{{ total_licencias }} ({{ licencias_activas }} activas)</td>
+    </tr>
+</table>
+
+<p>
+    Copia este valor a <code>LICENCIA_SECRETO</code> en el <code>.env</code> de
+    cada POS (<code>/opt/elcholi/.env</code>, <code>/opt/latimotea/.env</code>).
+    Debe ser <strong>idéntico</strong>; si no, el POS marca la licencia como inválida.
+    La huella sirve para comprobar que ambos lados coinciden sin mostrar el secreto.
+</p>
+
+<script>
+document.getElementById('btn-secreto')?.addEventListener('click', function () {
+    var box = document.getElementById('secreto');
+    var visible = box.textContent === box.dataset.secreto;
+    box.textContent = visible ? '----------------------------' : box.dataset.secreto;
+    this.textContent = visible ? 'Mostrar' : 'Ocultar';
+});
+</script>
+{% endblock %}

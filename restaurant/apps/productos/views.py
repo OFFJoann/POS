@@ -81,6 +81,28 @@ def editar_producto(request, pk):
 
 @login_required
 @permiso_required('productos')
+def siguiente_codigo_producto(request):
+    """Devuelve un código de barras corto y único para un producto nuevo.
+
+    Genera secuencialmente desde 100001 (6 dígitos), saltando los que ya
+    están en uso.
+    """
+    codigos = Producto.objects.filter(
+        codigo__regex=r'^\d+$'
+    ).values_list('codigo', flat=True)
+    maximo = 100000
+    for c in codigos:
+        try:
+            n = int(c)
+        except (TypeError, ValueError):
+            continue
+        if n > maximo:
+            maximo = n
+    return JsonResponse({'codigo': str(maximo + 1)})
+
+
+@login_required
+@permiso_required('productos')
 def eliminar_producto(request, pk):
     """Elimina un producto. Si hay registros que lo protegen, muestra dónde."""
     producto = get_object_or_404(Producto, pk=pk)

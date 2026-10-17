@@ -14,7 +14,7 @@
                 </h2>
                 <div class="d-flex gap-2">
                     <a href="{% url 'vista_mesas' %}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-grid-3x3-gap-fill"></i> Mesas
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Facturar
                     </a>
                     <a href="{% url 'lista_precios' %}" class="btn btn-outline-secondary btn-lg">
                         <i class="bi bi-tags"></i> Precios
@@ -101,7 +101,7 @@
         <div class="col-12">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">
-                    <h5 class="mb-0"><i class="bi bi-grid-3x3-gap-fill"></i> Mesas</h5>
+                    <h5 class="mb-0"><i class="bi bi-grid-3x3-gap-fill"></i> Facturar</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
@@ -110,7 +110,7 @@
                             <a href="{% url 'abrir_pedido' mesa.id %}" class="text-decoration-none">
                                 <div class="card mesa-card mesa-{{ mesa.estado }}">
                                     <div class="card-body text-center py-3">
-                                        <h5 class="card-title mb-1">Mesa {{ mesa.numero }}</h5>
+                                        <h5 class="card-title mb-1">{{ mesa.get_tipo_display }} {{ mesa.numero }}</h5>
                                         <small>{{ mesa.get_estado_display }}</small>
                                     </div>
                                 </div>

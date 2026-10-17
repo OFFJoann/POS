@@ -250,16 +250,18 @@ def lista_consolidados(request):
     for c in cierres:
         facturas = c.facturas_del_dia.select_related('mesa', 'mesero').prefetch_related('pedido__detalles__producto')
 
-        # Agrupar facturas por mesa
+        # Agrupar facturas por puesto (mesa o caja)
         mesas_dict = defaultdict(list)
         for f in facturas:
-            mesas_dict[f.mesa.numero].append(f)
+            mesas_dict[(f.mesa.tipo, f.mesa.numero)].append(f)
 
         mesas_agrupadas = []
-        for mesa_num in sorted(mesas_dict.keys()):
-            facturas_mesa = mesas_dict[mesa_num]
+        for tipo, mesa_num in sorted(mesas_dict.keys()):
+            facturas_mesa = mesas_dict[(tipo, mesa_num)]
             total_mesa = sum(f.total for f in facturas_mesa)
             mesas_agrupadas.append({
+                'tipo': tipo,
+                'tipo_display': 'Caja' if tipo == 'caja' else 'Mesa',
                 'numero': mesa_num,
                 'facturas': facturas_mesa,
                 'total': total_mesa,

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'apps.ventas',
     'apps.caja',
     'apps.reportes',
+    'apps.licencias',
 ]
 
 # ─── Middleware ──────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.licencias.middleware.BloqueoLicenciaMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -75,6 +77,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.ventas.context_processors.caja_abierta',
                 'apps.configuracion.context_processors.configuracion',
+                'apps.licencias.context_processors.licencia',
             ],
         },
     },
@@ -136,6 +139,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ─── Autenticación personalizada ────────────────────────────────────────────
 AUTHENTICATION_BACKENDS = [
     'apps.usuarios.backends.EmailBackend',
+    # Necesario para que el admin de Django autentique por username.
+    # El login del POS (/acceder/) sigue usando correo: ModelBackend ignora
+    # el campo `email` y solo responde a `username`.
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 LOGIN_URL = '/acceder/'
@@ -165,6 +172,18 @@ DEFAULT_FROM_EMAIL = (
     or EMAIL_HOST_USER
     or 'El Choli <noreply@elcholi.local>'
 )
+
+# ─── Licenciamiento (cliente del servidor central) ─────────────────────────
+# LICENCIA_CODIGO es el código que se paga/renueva; LICENCIA_API_URL apunta al
+# servidor central (licencias_server). LICENCIA_SECRETO debe coincidir con el
+# del servidor para verificar la firma HMAC-SHA256.
+LICENCIA_CODIGO = os.environ.get('LICENCIA_CODIGO', '').strip()
+LICENCIA_API_URL = os.environ.get('LICENCIA_API_URL', '').strip()
+LICENCIA_SECRETO = os.environ.get('LICENCIA_SECRETO', '').strip()
+# Valores por defecto (no hace falta configurarlos en el .env).
+LICENCIA_GRACIA_DIAS = int(os.environ.get('LICENCIA_GRACIA_DIAS', '2'))
+LICENCIA_REVALIDACION_HORAS = float(os.environ.get('LICENCIA_REVALIDACION_HORAS', '5'))
+LICENCIA_DIAS_AVISO = int(os.environ.get('LICENCIA_DIAS_AVISO', '2'))
 
 # ─── Seguridad TLS (detrás de nginx) ───────────────────────────────────────
 # Activa cookies seguras y confianza en el proxy de nginx cuando

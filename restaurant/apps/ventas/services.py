@@ -254,7 +254,7 @@ def generar_factura_pdf_bytes(factura):
     pdf.text(x, y, 'Fecha: %s' % factura.created_at.strftime('%d/%m/%Y'), size=10)
     pdf.text(x + 200, y, 'Hora: %s' % factura.created_at.strftime('%H:%M:%S'), size=10)
     y += 14
-    pdf.text(x, y, 'Mesa: %s' % factura.mesa.numero, size=10)
+    pdf.text(x, y, '%s: %s' % (factura.mesa.get_tipo_display(), factura.mesa.numero), size=10)
     pdf.text(x + 200, y, 'Mesero: %s %s' % (factura.mesero.nombre, factura.mesero.apellidos), size=10)
     y += 14
     pdf.text(x, y, 'Metodo de pago: %s' % factura.get_metodo_pago_display(), size=10)
@@ -365,7 +365,7 @@ def generar_reporte_ventas_pdf(facturas, fecha_generacion):
     y += 16
     pdf.line(x, y, pdf.W - x, y, 1); y += 6
     cols = [x, x + 60, x + 110, x + 175, x + 320, x + 420]
-    headers = ['# Fact', 'Fecha', 'Mesa', 'Mesero', 'Metodo', 'Total']
+    headers = ['# Fact', 'Fecha', 'Puesto', 'Mesero', 'Metodo', 'Total']
     for i, h in enumerate(headers):
         pdf.text(cols[i], y, h, size=9, bold=True)
     y += 4
@@ -375,7 +375,7 @@ def generar_reporte_ventas_pdf(facturas, fecha_generacion):
     for f in facturas:
         pdf.text(cols[0], y, str(f.numero), size=9)
         pdf.text(cols[1], y, f.created_at.strftime('%d/%m/%Y'), size=9)
-        pdf.text(cols[2], y, str(f.mesa.numero), size=9)
+        pdf.text(cols[2], y, str(f.mesa), size=9)
         mesero = f.mesero.nombre
         if len(mesero) > 18:
             mesero = mesero[:15] + '...'

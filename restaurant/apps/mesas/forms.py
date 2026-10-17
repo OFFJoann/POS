@@ -44,19 +44,29 @@ class DescuentoForm(forms.Form):
 
 
 class MesaForm(forms.ModelForm):
-    """Formulario para crear/editar mesa."""
+    """Formulario para crear/editar mesa o caja."""
     class Meta:
         model = Mesa
-        fields = ['numero']
+        fields = ['numero', 'tipo']
         widgets = {
             'numero': forms.NumberInput(attrs={
-                'class': 'form-control', 'placeholder': 'Número de mesa',
+                'class': 'form-control', 'placeholder': 'Número',
                 'min': '1', 'step': '1'
+            }),
+            'tipo': forms.Select(attrs={
+                'class': 'form-select',
             }),
         }
 
-    def clean_numero(self):
-        numero = self.cleaned_data['numero']
-        if Mesa.objects.filter(numero=numero).exclude(pk=self.instance.pk).exists():
-            raise forms.ValidationError(f'Ya existe una mesa con el número {numero}.')
-        return numero
+    def clean(self):
+        cleaned = super().clean()
+        numero = cleaned.get('numero')
+        tipo = cleaned.get('tipo') or 'mesa'
+        if numero is not None and Mesa.objects.filter(
+            numero=numero, tipo=tipo
+        ).exclude(pk=self.instance.pk).exists():
+            etiqueta = 'caja' if tipo == 'caja' else 'mesa'
+            self.add_error(
+                'numero',
+                f'Ya existe una {etiqueta} con el número {numero}.')
+        return cleaned

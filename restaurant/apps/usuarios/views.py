@@ -26,6 +26,7 @@ from apps.caja.models import AperturaCaja
 from apps.ventas.models import Factura
 from apps.productos.models import Producto
 from apps.mesas.models import Mesa
+from apps.licencias.services import obtener_licencia
 
 
 class AccesoForm(forms.Form):
@@ -249,6 +250,16 @@ def lista_vendedores(request):
 @admin_required
 def crear_vendedor(request):
     """Crea un nuevo vendedor."""
+    limite = obtener_licencia().get('limite_vendedores')
+    if limite and limite > 0:
+        activos = Vendedor.objects.filter(activo=True).count()
+        if activos >= limite:
+            messages.error(
+                request,
+                f'La licencia solo permite {limite} vendedor(es) activo(s). '
+                'Desactiva un vendedor existente o renueva la licencia.',
+            )
+            return redirect('lista_vendedores')
     if request.method == 'POST':
         form = VendedorForm(request.POST)
         if form.is_valid():

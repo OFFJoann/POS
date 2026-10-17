@@ -56,10 +56,10 @@ addTourStep('bi-shop', 'primary', 'Bienvenido a El Choli',
     'Este es tu sistema de facturación. Te guiaremos por cada módulo que tienes disponible.',
     ['Diseñado para facilitar tu trabajo diario', 'Cada módulo tiene un icono en la barra superior']);
 
-// ── Mesas ──
-addTourStep('bi-grid-3x3-gap-fill', 'success', 'Mesas',
-    'Gestiona los pedidos de cada mesa del restaurante.',
-    ['Haz clic en una mesa para abrir un pedido', 'Agrega productos seleccionando por categoría o buscando', 'El pedido se envía a caja para facturar y cobrar']);
+// ── Facturar ──
+addTourStep('bi-grid-3x3-gap-fill', 'success', 'Facturar',
+    'Gestiona los pedidos de cada mesa y caja del restaurante.',
+    ['Haz clic en una mesa o caja para abrir un pedido', 'Agrega productos seleccionando por categoría, buscando o por referencia', 'El pedido se envía a caja para facturar y cobrar']);
 
 // ── Facturar ──
 addTourStep('bi-receipt', 'info', 'Facturar y cobrar',
@@ -113,7 +113,7 @@ addTourStep('bi-gear', 'secondary', 'Configuración',
 
 // Filtrar solo los pasos que aplican al usuario
 const permMap = {
-    'Mesas': 'facturar',
+    'Facturar': 'facturar',
     'Facturar y cobrar': 'facturar',
     'Productos': 'productos',
     'Inventario': 'inventario',

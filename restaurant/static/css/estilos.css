@@ -63,6 +63,13 @@ body {
     color: #856404;
 }
 
+.mesa-asignada {
+    background-color: #e7d9f5;
+    border-color: #7048e8;
+    color: #3b2a63;
+}
+
+
 .mesa-parcial {
     background-color: #ffe5cc;
     border-color: #fd7e14;
@@ -91,6 +98,12 @@ body {
     background-color: #ffc107;
     color: #333;
 }
+
+.estado-asignada {
+    background-color: #d0bfff;
+    color: #000;
+}
+
 
 .estado-parcial {
     background-color: #fd7e14;

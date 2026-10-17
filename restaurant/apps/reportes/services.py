@@ -129,7 +129,7 @@ def exportar_ventas_excel(facturas):
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-    headers = ['# Factura', 'Fecha', 'Hora', 'Mesa', 'Mesero',
+    headers = ['# Factura', 'Fecha', 'Hora', 'Puesto', 'Mesero',
                'Método Pago', 'Subtotal', 'Descuento', 'Total']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -143,7 +143,7 @@ def exportar_ventas_excel(facturas):
             factura.numero,
             factura.created_at.strftime('%d/%m/%Y'),
             factura.created_at.strftime('%H:%M'),
-            factura.mesa.numero,
+            str(factura.mesa),
             str(factura.mesero),
             factura.get_metodo_pago_display(),
             float(factura.subtotal),

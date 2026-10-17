@@ -16,15 +16,24 @@ class Mesa(models.Model):
     """
     ESTADOS = [
         ('libre', '🟢 Libre'),
+        ('asignada', '🟣 Asignada'),
         ('activo', '🟡 Pedido activo'),
         ('parcial', '🟠 Pago parcial'),
         ('pagada', '🔵 Pagada'),
         ('cerrada', '🔴 Cerrada'),
     ]
 
+    TIPOS = [
+        ('mesa', 'Mesa'),
+        ('caja', 'Caja'),
+    ]
+
     numero = models.PositiveIntegerField(
-        'Número de mesa', unique=True,
-        db_index=True
+        'Número', db_index=True
+    )
+    tipo = models.CharField(
+        'Tipo', max_length=10, choices=TIPOS,
+        default='mesa', db_index=True
     )
     estado = models.CharField(
         'Estado', max_length=10, choices=ESTADOS,
@@ -35,10 +44,21 @@ class Mesa(models.Model):
     class Meta:
         verbose_name = 'Mesa'
         verbose_name_plural = 'Mesas'
-        ordering = ['numero']
+        ordering = ['tipo', 'numero']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tipo', 'numero'],
+                name='unicidad_tipo_numero_mesa',
+            ),
+        ]
 
     def __str__(self):
-        return f'Mesa {self.numero}'
+        return f'{self.get_tipo_display()} {self.numero}'
+
+    @property
+    def es_caja(self):
+        """True si esta fila es una caja (puesto tipo supermercado)."""
+        return self.tipo == 'caja'
 
 
 class SolicitudPedido(models.Model):
@@ -87,7 +107,7 @@ class SolicitudPedido(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Solicitud #{self.id} - Mesa {self.mesa.numero}'
+        return f'Solicitud #{self.id} - {self.mesa}'
 
 
 class Pedido(models.Model):
@@ -155,7 +175,7 @@ class Pedido(models.Model):
         ]
 
     def __str__(self):
-        return f'Pedido #{self.id} - Mesa {self.mesa.numero}'
+        return f'Pedido #{self.id} - {self.mesa}'
 
     def calcular_totales(self):
         """Recalcula subtotal, descuento, total y saldo pendiente del pedido."""
