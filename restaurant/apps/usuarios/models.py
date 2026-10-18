@@ -45,6 +45,8 @@ class Vendedor(models.Model):
         help_text='Modificar el precio de los productos al vender.')
     perm_cortesia = models.BooleanField('Dar cortesías', default=False,
         help_text='Marcar productos o ventas completas como cortesía (gratis).')
+    perm_credito = models.BooleanField('Otorgar créditos', default=False,
+        help_text='Vender a crédito y gestionar los abonos de los clientes.')
     perm_descuento = models.BooleanField('Aplicar descuentos', default=False,
         help_text='Aplicar descuentos manuales al pedido.')
     perm_trasladar_mesas = models.BooleanField('Trasladar mesas', default=False,
@@ -91,6 +93,8 @@ class Vendedor(models.Model):
                            'Modificar el precio de los productos al vender.'),
         'cortesia': ('perm_cortesia', 'Dar cortesías',
                      'Marcar productos o ventas completas como cortesía (gratis).'),
+        'credito': ('perm_credito', 'Otorgar créditos',
+                    'Vender a crédito y gestionar los abonos de los clientes.'),
         'descuento': ('perm_descuento', 'Aplicar descuentos',
                       'Aplicar descuentos manuales al pedido.'),
         'trasladar_mesas': ('perm_trasladar_mesas', 'Trasladar mesas',

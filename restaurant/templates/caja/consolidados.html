@@ -177,6 +177,8 @@
                                                     <span class="badge bg-success">Efectivo</span>
                                                     {% elif f.metodo_pago == 'transferencia' %}
                                                     <span class="badge bg-info">Transf.</span>
+                                                    {% elif f.metodo_pago == 'credito' %}
+                                                    <span class="badge bg-warning text-dark">Crédito</span>
                                                     {% else %}
                                                     <span class="badge bg-secondary">Cortesía</span>
                                                     {% endif %}

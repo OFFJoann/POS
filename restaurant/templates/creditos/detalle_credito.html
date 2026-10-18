@@ -1,0 +1,258 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Crédito de {{ credito.cliente.nombre }} - El Choli{% endblock %}
+
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .cuota-table { font-size: 0.8rem; }
+    .cuota-table th, .cuota-table td { padding: 0.35rem 0.45rem !important; }
+    .resumen-card small { font-size: 0.7rem; }
+    .resumen-card h5 { font-size: 1rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-2 py-sm-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+            <i class="bi bi-hourglass-split"></i> Crédito
+            <small class="text-muted">— {{ credito.cliente.nombre }}</small>
+        </h5>
+        <div class="d-flex gap-2">
+            {% if puede_enviar %}
+            <form method="post" action="{% url 'enviar_recordatorio' credito.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-envelope"></i> Recordatorio
+                </button>
+            </form>
+            {% endif %}
+            <a href="{% url 'lista_creditos' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <!-- Resumen del crédito -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3 resumen-card">
+            <div class="p-3 bg-light rounded text-center h-100">
+                <small class="text-muted d-block">Monto total</small>
+                <h5 class="mb-0 text-primary">${{ credito.monto_total|mil }}</h5>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 resumen-card">
+            <div class="p-3 bg-light rounded text-center h-100">
+                <small class="text-muted d-block">Saldo pendiente</small>
+                <h5 class="mb-0 {% if credito.saldo_pendiente > 0 %}text-warning{% else %}text-success{% endif %}">
+                    ${{ credito.saldo_pendiente|mil }}
+                </h5>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 resumen-card">
+            <div class="p-3 bg-light rounded text-center h-100">
+                <small class="text-muted d-block">Abonado</small>
+                <h5 class="mb-0 text-success">${{ credito.monto_pagado|mil }}</h5>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 resumen-card">
+            <div class="p-3 bg-light rounded text-center h-100">
+                <small class="text-muted d-block">Cuotas ({{ credito.get_frecuencia_display|lower }})</small>
+                <h5 class="mb-0">{{ credito.cuotas_pagadas }}/{{ credito.cuotas_total }}</h5>
+                {% if credito.cuotas_parciales %}
+                <span class="badge bg-warning text-dark">{{ credito.cuotas_parciales }} parcial(es)</span>
+                {% endif %}
+                {% if credito.estado == 'activo' %}
+                <span class="badge bg-primary">Activo</span>
+                {% elif credito.estado == 'vencido' %}
+                <span class="badge bg-danger">Vencido</span>
+                {% else %}
+                <span class="badge bg-success">Pagado</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Progreso -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            {% with pct=credito.porcentaje_pagado %}
+            <div class="d-flex justify-content-between small mb-1">
+                <span class="text-muted">Progreso de pago</span>
+                <span class="fw-bold">{{ pct }}%</span>
+            </div>
+            <div class="progress" style="height: 10px;">
+                <div class="progress-bar {% if credito.estado == 'pagado' %}bg-success{% elif credito.estado == 'vencido' %}bg-danger{% else %}bg-primary{% endif %}"
+                     role="progressbar" style="width: {{ pct }}%;"></div>
+            </div>
+            {% endwith %}
+            <div class="d-flex justify-content-between small mt-2 text-muted">
+                <span>
+                    <i class="bi bi-person"></i> {{ credito.cliente.nombre }}
+                    {% if credito.cliente.cedula %} · C.I. {{ credito.cliente.cedula }}{% endif %}
+                    {% if credito.cliente.correo %}
+                    <span class="d-block small text-muted">
+                        <i class="bi bi-envelope"></i> {{ credito.cliente.correo }}
+                    </span>
+                    {% endif %}
+                </span>
+                <span>
+                    Factura <a href="{% url 'ver_factura' credito.factura.id %}">#{{ credito.factura.numero }}</a>
+                    · {{ credito.get_frecuencia_display }}
+                    · {{ credito.creado_en|date:'d/m/Y' }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Calendario de cuotas -->
+        <div class="col-lg-7 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0"><i class="bi bi-calendar3"></i> Calendario de cuotas</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 cuota-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">#</th>
+                                    <th>Vencimiento</th>
+                                    <th class="text-end">Monto</th>
+                                    <th class="text-center pe-3">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cuota in cuotas %}
+                                <tr class="{% if cuota.esta_vencida %}table-danger{% elif cuota.estado == 'pagada' %}table-success{% elif cuota.estado == 'parcial' %}table-warning{% endif %}">
+                                    <td class="ps-3 fw-bold">{{ cuota.numero }}</td>
+                                    <td>
+                                        {{ cuota.fecha_vencimiento|date:'d/m/Y' }}
+                                        {% if cuota.esta_vencida %}
+                                        <span class="badge bg-danger ms-1">Vencida</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        ${{ cuota.monto|mil }}
+                                        {% if cuota.monto_pagado > 0 and cuota.estado != 'pagada' %}
+                                        <small class="text-muted d-block">Abonado ${{ cuota.monto_pagado|mil }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center pe-3">
+                                        {% if cuota.estado == 'pagada' %}
+                                        <span class="badge bg-success"><i class="bi bi-check-lg"></i> Pagada</span>
+                                        <small class="text-muted d-block">{{ cuota.fecha_pago|date:'d/m/Y' }}</small>
+                                        {% elif cuota.estado == 'parcial' %}
+                                        <span class="badge bg-warning text-dark">Parcial</span>
+                                        <small class="text-muted d-block">Falta ${{ cuota.monto_faltante|mil }}</small>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Pendiente</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Abonar + historial -->
+        <div class="col-lg-5 mb-3">
+            <!-- Formulario de abono -->
+            {% if credito.saldo_pendiente > 0 %}
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0"><i class="bi bi-cash-coin"></i> Registrar abono</h6>
+                </div>
+                <div class="card-body">
+                    {% if saldo_vencido > 0 %}
+                    <div class="alert alert-danger py-2 mb-2 small">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Saldo vencido: <strong>${{ saldo_vencido|mil }}</strong>
+                    </div>
+                    {% endif %}
+                    <form method="post" action="{% url 'registrar_abono' credito.id %}">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Monto a abonar *</label>
+                            <input type="number" name="monto" class="form-control form-control-lg"
+                                   inputmode="decimal" step="0.01" min="0.01"
+                                   max="{{ credito.saldo_pendiente|floatformat:2 }}"
+                                   value="{{ credito.proxima_cuota.monto_faltante|floatformat:2 }}" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Método</label>
+                            <select name="metodo" class="form-select">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Aplicar a cuota (opcional)</label>
+                            <select name="cuota" class="form-select">
+                                <option value="">Automático (más antigua)</option>
+                                {% for cuota in cuotas %}
+                                {% if cuota.estado != 'pagada' %}
+                                <option value="{{ cuota.pk }}">Cuota {{ cuota.numero }} — falta ${{ cuota.monto_faltante|mil }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">Nota (opcional)</label>
+                            <input type="text" name="observacion" class="form-control"
+                                   maxlength="200" placeholder="Efectivo, transferencia, etc.">
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-lg"></i> Registrar abono
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-success py-2 mb-3 small">
+                <i class="bi bi-check-circle"></i>
+                Este crédito está pagado por completo.
+            </div>
+            {% endif %}
+
+            <!-- Historial de abonos -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Historial de abonos</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for abono in abonos %}
+                        <li class="list-group-item d-flex justify-content-between align-items-start py-2">
+                            <div class="min-w-0">
+                                <span class="fw-bold">${{ abono.monto|mil }}</span>
+                                <span class="badge bg-secondary ms-1">{{ abono.get_metodo_display }}</span>
+                                {% if abono.cuota %}
+                                <span class="text-muted ms-1 small">→ Cuota {{ abono.cuota.numero }}</span>
+                                {% endif %}
+                                <small class="text-muted d-block">
+                                    {{ abono.creado_en|date:'d/m/Y H:i' }}
+                                    {% if abono.usuario %}· {{ abono.usuario.get_full_name|default:abono.usuario.username }}{% endif %}
+                                    {% if abono.observacion %}· {{ abono.observacion }}{% endif %}
+                                </small>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-4 small">
+                            <i class="bi bi-inbox"></i> Aún no hay abonos registrados.
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

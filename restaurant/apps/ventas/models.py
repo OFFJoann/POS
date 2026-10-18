@@ -16,6 +16,7 @@ class Factura(models.Model):
     METODOS_PAGO = [
         ('efectivo', 'Efectivo'),
         ('transferencia', 'Transferencia'),
+        ('credito', 'Crédito'),
         ('cortesia', 'Cortesía'),
     ]
 
@@ -94,6 +95,7 @@ class Pago(models.Model):
     METODOS = [
         ('efectivo', 'Efectivo'),
         ('transferencia', 'Transferencia'),
+        ('credito', 'Crédito'),
         ('cortesia', 'Cortesía'),
     ]
 

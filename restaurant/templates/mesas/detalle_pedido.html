@@ -290,6 +290,9 @@
                         <select name="metodo_pago" class="form-select form-select-lg" required>
                             <option value="efectivo">Efectivo</option>
                             <option value="transferencia">Transferencia</option>
+                            {% if user|puede:"credito" %}
+                            <option value="credito">Crédito</option>
+                            {% endif %}
                             {% if user|puede:"cortesia" %}
                             <option value="cortesia">Cortesía</option>
                             {% endif %}
@@ -305,12 +308,12 @@
                         <div class="alert alert-warning py-2 mb-0 small">No hay un QR de consignación configurado.</div>
                         {% endif %}
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3 campo-valor-recibido">
                         <label class="form-label">Valor recibido</label>
                         <input type="number" name="valor_recibido" class="form-control form-control-lg"
                                inputmode="numeric" step="1" min="{{ monto|floatformat:0 }}" value="{{ monto|floatformat:0 }}" required>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3 campo-correo">
                         <label class="form-label">Correo del cliente (opcional)</label>
                         <input type="email" name="correo_cliente" class="form-control form-control-lg"
                                placeholder="cliente@correo.com">
@@ -321,6 +324,31 @@
                             </label>
                         </div>
                     </div>
+                    {% if user|puede:"credito" %}
+                    <div class="mb-3 credito-campos d-none">
+                        <div class="alert alert-info py-2 mb-2 small">
+                            <i class="bi bi-exclamation-circle"></i>
+                            Se registrará la venta como crédito. El cliente irá abonando.
+                        </div>
+                        <label class="form-label">Nombre del cliente *</label>
+                        <input type="text" name="cliente_nombre" class="form-control form-control-lg"
+                               placeholder="Nombre completo" maxlength="150">
+                        <label class="form-label mt-2">Número de cuotas *</label>
+                        <input type="number" name="cliente_cuotas" class="form-control form-control-lg"
+                               inputmode="numeric" step="1" min="1" max="60" value="1">
+                        <label class="form-label mt-2">Frecuencia de pago</label>
+                        <select name="cliente_frecuencia" class="form-select form-control-lg">
+                            <option value="mensual">Mensual (último día del mes)</option>
+                            <option value="quincenal">Quincenal (día 15 y último día)</option>
+                        </select>
+                        <label class="form-label mt-2">Correo del cliente (opcional)</label>
+                        <input type="email" name="cliente_correo" class="form-control form-control-lg"
+                               placeholder="cliente@correo.com">
+                        <p class="small text-muted mt-2 mb-0">
+                            Sin interés. Total dividido en cuotas iguales, con vencimiento en fechas fijas de calendario.
+                        </p>
+                    </div>
+                    {% endif %}
                     {% endwith %}
                 </div>
                 <div class="modal-footer">
@@ -635,16 +663,31 @@ $(document).ready(function() {
         $(this).closest('form').submit();
     });
 
-    // Mostrar QR de consignación al elegir transferencia en los modales de cobro
+    // Mostrar QR de consignación o campos de crédito según el método de pago
     function actualizarQR(modal) {
         var select = modal.querySelector('select[name="metodo_pago"]');
         var qr = modal.querySelector('.qr-consignacion');
+        var valor = modal.querySelector('.campo-valor-recibido');
+        var correo = modal.querySelector('.campo-correo');
+        var credito = modal.querySelector('.credito-campos');
+        var esCredito = !!(select && select.value === 'credito');
         if (select && qr) {
             if (select.value === 'transferencia') {
                 qr.classList.remove('d-none');
             } else {
                 qr.classList.add('d-none');
             }
+        }
+        if (valor) {
+            valor.classList.toggle('d-none', esCredito);
+            var inpValor = valor.querySelector('input[name="valor_recibido"]');
+            if (inpValor) { inpValor.required = !esCredito; }
+        }
+        if (correo) {
+            correo.classList.toggle('d-none', esCredito);
+        }
+        if (credito) {
+            credito.classList.toggle('d-none', !esCredito);
         }
     }
 
@@ -679,6 +722,11 @@ $(document).ready(function() {
         var form = $(this);
         var btn = form.find('button[type="submit"]');
         var urlRedir = '/mesas/pedido/{{ pedido.id }}/';
+        var metodoSel = form.find('select[name="metodo_pago"]').val();
+        if (metodoSel === 'credito' && !form.find('input[name="cliente_nombre"]').val().trim()) {
+            Swal.fire('Falta el cliente', 'Ingresa el nombre del cliente para el crédito.', 'warning');
+            return;
+        }
         btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Procesando...');
 
         $.ajax({

@@ -59,9 +59,25 @@ class AperturaCaja(models.Model):
         return total
 
     @property
+    def total_ventas_credito(self):
+        """Suma de las ventas a crédito otorgadas durante esta caja.
+
+        Cuenta como venta/ingreso del día, pero NO suma al dinero esperado en
+        el cajón: la venta se registró como crédito, no entró efectivo.
+        """
+        from apps.ventas.models import Pago
+        total = Pago.objects.filter(
+            metodo='credito',
+            created_at__gte=self.fecha_apertura,
+            created_at__lte=self._fecha_fin,
+        ).aggregate(total=models.Sum('monto'))['total'] or 0
+        return total
+
+    @property
     def total_ventas(self):
-        """Total de ventas."""
-        return self.total_ventas_efectivo + self.total_ventas_transferencia
+        """Total de ventas del día (incluye crédito)."""
+        return (self.total_ventas_efectivo + self.total_ventas_transferencia
+                + self.total_ventas_credito)
 
     @property
     def total_egresos(self):
@@ -86,14 +102,22 @@ class AperturaCaja(models.Model):
         return total
 
     @property
+    def total_ventas_efectivo_transferencia(self):
+        """Ventas que sí entraron en dinero (efectivo + transferencia).
+
+        Es la base del dinero esperado en el cajón; el crédito queda fuera.
+        """
+        return self.total_ventas_efectivo + self.total_ventas_transferencia
+
+    @property
     def dinero_esperado(self):
-        """Total: ventas (efectivo+transferencia) - egresos."""
-        return self.total_ventas - self.total_egresos
+        """Efectivo esperado en el cajón: ventas cobradas - egresos."""
+        return self.total_ventas_efectivo_transferencia - self.total_egresos
 
     @property
     def diferencia(self):
         """Diferencia entre lo esperado y lo real."""
-        return self.total_ventas - self.total_egresos
+        return self.total_ventas_efectivo_transferencia - self.total_egresos
 
 
 class CierreCaja(models.Model):
@@ -122,6 +146,9 @@ class CierreCaja(models.Model):
     )
     total_ventas_transferencia = models.DecimalField(
         'Ventas por transferencia', max_digits=12, decimal_places=2, default=0
+    )
+    total_ventas_credito = models.DecimalField(
+        'Ventas a crédito', max_digits=12, decimal_places=2, default=0
     )
     total_ventas = models.DecimalField(
         'Total ventas', max_digits=12, decimal_places=2, default=0

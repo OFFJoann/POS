@@ -114,7 +114,40 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    networks: [restaurant, elcholi_net]
+    networks: [restaurant]
+
+  # 3b) Recordatorios de cuotas de crédito (una vez al día)
+  # Reutiliza la imagen de la app pero solo corre el comando de envío de
+  # recordatorios en un bucle, sin gunicorn ni workers. Avisa un día antes del
+  # vencimiento y el día del vencimiento (sin duplicados).
+  recordatorios:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elcholi_recordatorios
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/app/docker/recordatorios.sh"]
+    environment:
+      TZ: America/Guayaquil
+      TARGET_HOUR_UTC: ${RECORDATORIOS_HORA_UTC:-13}   # 08:00 Ecuador (UTC-5)
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-False}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks: [restaurant]
 
   # 4) nginx: estáticos, media y proxy inverso
   nginx:

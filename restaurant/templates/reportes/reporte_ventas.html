@@ -48,6 +48,7 @@
                         <option value="">Todos</option>
                         <option value="efectivo" {% if request.GET.metodo == 'efectivo' %}selected{% endif %}>Efectivo</option>
                         <option value="transferencia" {% if request.GET.metodo == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                        <option value="credito" {% if request.GET.metodo == 'credito' %}selected{% endif %}>Crédito</option>
                     </select>
                 </div>
                 <div class="col-md-2">

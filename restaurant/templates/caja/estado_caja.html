@@ -28,7 +28,7 @@
     {% if caja %}
     {% if puede_ver_totales %}
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <div class="card border-0 shadow-sm bg-success text-white">
                 <div class="card-body">
                     <h6>Ventas efectivo</h6>
@@ -36,7 +36,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <div class="card border-0 shadow-sm bg-info text-white">
                 <div class="card-body">
                     <h6>Ventas transferencia</h6>
@@ -44,7 +44,15 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
+            <div class="card border border-warning shadow-sm">
+                <div class="card-body text-dark">
+                    <h6><i class="bi bi-hourglass-split"></i> Ventas crédito</h6>
+                    <h3>${{ caja.total_ventas_credito|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
             <div class="card border-0 shadow-sm bg-warning text-white">
                 <div class="card-body">
                     <h6>Egresos efectivo</h6>
@@ -52,7 +60,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <div class="card border-0 shadow-sm bg-secondary text-white">
                 <div class="card-body">
                     <h6>Egresos transferencia</h6>

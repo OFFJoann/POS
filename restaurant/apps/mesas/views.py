@@ -599,7 +599,7 @@ def cobrar_pedido(request, pedido_id):
             messages.success(request, f'{pedido.mesa} libre.')
             return redirect('vista_mesas')
 
-        if metodo_pago not in ['efectivo', 'transferencia', 'cortesia']:
+        if metodo_pago not in ['efectivo', 'transferencia', 'credito', 'cortesia']:
             if es_ajax:
                 return JsonResponse({'ok': False, 'error': 'Método de pago inválido.'})
             messages.error(request, 'Método de pago inválido.')
@@ -613,13 +613,48 @@ def cobrar_pedido(request, pedido_id):
                 messages.error(request, 'No tienes permiso para cobrar como cortesía.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
 
-        if valor_recibido < monto_a_cobrar:
+        # Datos del crédito: cliente y calendario de cuotas.
+        credito_cliente = ''
+        credito_correo = ''
+        credito_cuotas = 1
+        credito_frecuencia = 'mensual'
+        if metodo_pago == 'credito':
+            _v = getattr(request.user, 'vendedor', None)
+            _puede_credito = (request.user.is_staff or request.user.is_superuser
+                              or (_v and _v.puede('credito')))
+            if not _puede_credito:
+                if es_ajax:
+                    return JsonResponse({'ok': False, 'error': 'No tienes permiso para otorgar créditos.'})
+                messages.error(request, 'No tienes permiso para otorgar créditos.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
+
+            credito_cliente = (request.POST.get('cliente_nombre') or '').strip()
+            credito_correo = (request.POST.get('cliente_correo') or '').strip()
+            try:
+                credito_cuotas = int(request.POST.get('cliente_cuotas') or 1)
+            except (TypeError, ValueError):
+                credito_cuotas = 1
+            if credito_cuotas < 1:
+                credito_cuotas = 1
+            if request.POST.get('cliente_frecuencia') == 'quincenal':
+                credito_frecuencia = 'quincenal'
+            if not credito_cliente:
+                if es_ajax:
+                    return JsonResponse({'ok': False, 'error': 'Debes indicar el nombre del cliente para el crédito.'})
+                messages.error(request, 'Debes indicar el nombre del cliente para el crédito.')
+                return redirect('detalle_pedido', pedido_id=pedido_id)
+
+            # No se recibe dinero ahora: se registra la deuda completa.
+            valor_recibido = Decimal('0')
+
+        # En crédito no se exige dinero recibido (se financia la deuda).
+        if metodo_pago != 'credito' and valor_recibido < monto_a_cobrar:
             if es_ajax:
                 return JsonResponse({'ok': False, 'error': 'El valor recibido es menor al monto a cobrar.'})
             messages.error(request, 'El valor recibido es menor al monto a cobrar.')
             return redirect('detalle_pedido', pedido_id=pedido_id)
 
-        cambio = valor_recibido - monto_a_cobrar
+        cambio = Decimal('0') if metodo_pago == 'credito' else (valor_recibido - monto_a_cobrar)
 
         # Crear o actualizar factura
         if pedido.estado == 'parcial':
@@ -662,6 +697,20 @@ def cobrar_pedido(request, pedido_id):
             cambio=cambio,
             usuario=request.user,
         )
+
+        # Registrar la deuda del crédito con su calendario de cuotas.
+        if metodo_pago == 'credito':
+            if credito_correo:
+                factura.correo_cliente = credito_correo
+                factura.save(update_fields=['correo_cliente'])
+            from apps.creditos.services import crear_credito
+            crear_credito(
+                factura, credito_cliente, credito_cuotas,
+                correo=credito_correo,
+                observaciones='Venta a crédito',
+                monto=monto_a_cobrar,
+                frecuencia=credito_frecuencia,
+            )
 
         # Actualizar estado
         pedido.estado = 'pagado'

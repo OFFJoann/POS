@@ -1,0 +1,161 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Créditos - El Choli{% endblock %}
+
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .cred-table { font-size: 0.8rem; }
+    .cred-table th, .cred-table td { padding: 0.35rem 0.45rem !important; }
+    .cred-table .badge { font-size: 0.65rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 py-sm-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Créditos</h5>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="p-3 bg-light rounded text-center">
+                <small class="text-muted d-block">Activos</small>
+                <h4 class="mb-0 text-primary">{{ resumen.activos }}</h4>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="p-3 bg-light rounded text-center">
+                <small class="text-muted d-block">Vencidos</small>
+                <h4 class="mb-0 text-danger">{{ resumen.vencidos }}</h4>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="p-3 bg-light rounded text-center">
+                <small class="text-muted d-block">Pagados</small>
+                <h4 class="mb-0 text-success">{{ resumen.pagados }}</h4>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="p-3 bg-light rounded text-center">
+                <small class="text-muted d-block">Saldo por cobrar</small>
+                <h4 class="mb-0 text-warning">${{ resumen.saldo_total|mil }}</h4>
+                {% if resumen.saldo_vencido %}
+                <small class="text-danger">Vencido: ${{ resumen.saldo_vencido|mil }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros y búsqueda -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-8 col-md-4">
+                    <label class="form-label small mb-1">Buscar cliente, cédula o factura</label>
+                    <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Ej: María, 1023..., #15">
+                </div>
+                <input type="hidden" name="estado" value="{{ filtro }}">
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+                {% if q %}
+                <div class="col-auto">
+                    <a href="{% url 'lista_creditos' %}?estado={{ filtro }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-x-lg"></i> Limpiar
+                    </a>
+                </div>
+                {% endif %}
+            </form>
+            <div class="mt-2 d-flex flex-wrap gap-1">
+                <a href="?estado=activos{% if q %}&q={{ q }}{% endif %}"
+                   class="btn btn-sm {% if filtro == 'activos' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Activos</a>
+                <a href="?estado=vencidos{% if q %}&q={{ q }}{% endif %}"
+                   class="btn btn-sm {% if filtro == 'vencidos' %}btn-danger{% else %}btn-outline-secondary{% endif %}">Vencidos</a>
+                <a href="?estado=pagados{% if q %}&q={{ q }}{% endif %}"
+                   class="btn btn-sm {% if filtro == 'pagados' %}btn-success{% else %}btn-outline-secondary{% endif %}">Pagados</a>
+                <a href="?estado=todos{% if q %}&q={{ q }}{% endif %}"
+                   class="btn btn-sm {% if filtro == 'todos' %}btn-dark{% else %}btn-outline-secondary{% endif %}">Todos</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Listado -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 cred-table" style="table-layout:fixed; width:100%;">
+                    <colgroup>
+                        <col style="width:26%">
+                        <col style="width:16%">
+                        <col style="width:14%">
+                        <col style="width:14%">
+                        <col style="width:16%">
+                        <col style="width:14%">
+                    </colgroup>
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Cliente</th>
+                            <th class="d-none d-sm-table-cell">Factura</th>
+                            <th class="text-end">Monto</th>
+                            <th class="text-end">Saldo</th>
+                            <th class="text-center">Cuotas</th>
+                            <th class="text-center pe-3">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in creditos %}
+                        <tr style="cursor:pointer" onclick="window.location='{% url 'detalle_credito' c.id %}'">
+                            <td class="ps-3">
+                                <i class="bi bi-person text-muted me-1"></i>
+                                <span class="fw-bold">{{ c.cliente.nombre }}</span>
+                                <small class="text-muted d-block text-truncate">{{ c.cliente.correo|default:"" }}</small>
+                            </td>
+                            <td class="d-none d-sm-table-cell text-truncate">
+                                <a href="{% url 'ver_factura' c.factura.id %}" onclick="event.stopPropagation();"
+                                   class="text-decoration-none">#{{ c.factura.numero }}</a>
+                            </td>
+                            <td class="text-end">${{ c.monto_total|mil }}</td>
+                            <td class="text-end fw-bold {% if c.saldo_pendiente > 0 %}text-warning{% else %}text-success{% endif %}">
+                                ${{ c.saldo_pendiente|mil }}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">{{ c.cuotas_pagadas }}/{{ c.cuotas_total }}</span>
+                                <span class="badge bg-light text-dark border" title="{{ c.get_frecuencia_display }}">{{ c.frecuencia|slice:":1"|upper }}</span>
+                                {% if c.cuotas_vencidas %}
+                                <span class="badge bg-danger">{{ c.cuotas_vencidas }} venc.</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center pe-3">
+                                {% if c.estado == 'activo' %}
+                                <span class="badge bg-primary">Activo</span>
+                                {% elif c.estado == 'vencido' %}
+                                <span class="badge bg-danger">Vencido</span>
+                                {% else %}
+                                <span class="badge bg-success">Pagado</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox fs-1"></i>
+                                <p class="mt-2 mb-0">No hay créditos {% if filtro != 'todos' %}en «{{ filtro }}»{% endif %}.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
