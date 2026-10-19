@@ -164,7 +164,7 @@ def carta_digital(request):
         .prefetch_related(
             Prefetch(
                 'productos',
-                queryset=Producto.objects.filter(estado='activo').order_by('nombre'),
+                queryset=Producto.objects.filter(estado='activo', stock_actual__gt=0).order_by('nombre'),
                 to_attr='productos_carta',
             )
         )
