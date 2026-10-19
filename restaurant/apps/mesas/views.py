@@ -142,8 +142,19 @@ def eliminar_mesa(request, mesa_id):
     if mesa.estado != 'libre':
         messages.error(request, f'No se puede eliminar {mesa} porque no está libre.')
         return redirect('gestion_mesas')
-    Mesa.objects.filter(pk=mesa_id).delete()
-    messages.success(request, f'{mesa} eliminada.')
+    try:
+        Mesa.objects.filter(pk=mesa_id).delete()
+        messages.success(request, f'{mesa} eliminada.')
+    except Exception as e:
+        from django.db.models.deletion import ProtectedError
+        if isinstance(e, ProtectedError):
+            messages.error(
+                request,
+                f'No se puede eliminar {mesa} porque hay registros vinculados '
+                '(facturas, pedidos o cierres). Elimina o anula esos registros '
+                'antes de eliminarla.')
+        else:
+            messages.error(request, 'No se pudo eliminar la mesa/caja.')
     return redirect('gestion_mesas')
 
 
