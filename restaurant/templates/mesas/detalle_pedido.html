@@ -80,17 +80,16 @@
                             <div class="col-6 col-md-4 col-lg-3 producto-btn-wrapper"
                                  data-nombre="{{ producto.nombre|lower }}"
                                  data-codigo="{{ producto.codigo|lower }}">
-                                <button class="btn {% if producto.disponible %}btn-outline-primary{% else %}btn-outline-secondary{% endif %} btn-producto w-100 text-start p-1 d-flex align-items-center gap-2"
+                                <button class="btn {% if producto.disponible %}btn-outline-primary{% else %}btn-outline-warning{% endif %} btn-producto w-100 text-start p-1 d-flex align-items-center gap-2"
                                         data-producto-id="{{ producto.id }}"
                                         data-nombre="{{ producto.nombre }}"
                                         data-categoria="{{ producto.categoria.nombre }}"
                                         data-precio="{{ producto.precio_venta }}"
-                                        data-agotado="{% if producto.disponible %}0{% else %}1{% endif %}"
-                                        {% if not producto.disponible %}disabled{% endif %}>
+                                        data-agotado="{% if producto.disponible %}0{% else %}1{% endif %}">
                                     {% if producto.imagen %}
                                     <div style="width: 50px; height: 50px; flex-shrink: 0; overflow: hidden; background: #f8f9fa; display: flex; align-items: center; justify-content: center; border-radius: 4px;">
                                     <img src="{{ producto.imagen.url }}" alt="{{ producto.nombre }}"
-                                         style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;{% if not producto.disponible %} opacity: 0.4;{% endif %}">
+                                         style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;{% if not producto.disponible %} opacity: 0.5;{% endif %}">
                                     </div>
                                     {% else %}
                                     <div style="width: 50px; height: 50px; flex-shrink: 0; background: #f8f9fa; display: flex; align-items: center; justify-content: center; border-radius: 4px;">
@@ -547,9 +546,6 @@ $(document).ready(function() {
 
     // Agregar producto al pedido
     $('.btn-producto').on('click', function() {
-        if ($(this).data('agotado') == 1 || $(this).data('agotado') === '1') {
-            return;
-        }
         var id = $(this).data('producto-id');
         var nombre = $(this).data('nombre');
         var categoria = $(this).data('categoria');
