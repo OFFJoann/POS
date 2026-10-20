@@ -5,7 +5,7 @@ import calendar
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from .models import Abono, Cliente, Credito, Cuota
@@ -226,6 +226,46 @@ def _facturar_abono_preexistente(credito, monto, metodo, usuario, observacion=''
     return factura
 
 
+def _actualizar_factura_abono(abono, nuevo_monto):
+    """Sincroniza la Factura/Pago de un abono anotado con su nuevo monto.
+
+    Solo tiene efecto si el abono generó una factura (crédito anotado). Los
+    montos de caja deben cuadrar con el abono vigente.
+    """
+    from apps.ventas.models import Pago
+    factura = abono.factura
+    if factura is None:
+        return
+    factura.subtotal = nuevo_monto
+    factura.total = nuevo_monto
+    factura.valor_recibido = nuevo_monto
+    factura.save(update_fields=['subtotal', 'total', 'valor_recibido'])
+    Pago.objects.filter(factura=factura).update(
+        monto=nuevo_monto, valor_recibido=nuevo_monto)
+    # El pedido asociado también debe reflejar el monto.
+    from apps.mesas.models import Pedido
+    Pedido.objects.filter(pk=factura.pedido_id).update(
+        subtotal=nuevo_monto, total=nuevo_monto)
+
+
+def caja_abierta():
+    """Devuelve la AperturaCaja activa o None."""
+    from apps.caja.models import AperturaCaja
+    return AperturaCaja.objects.filter(activa=True).first()
+
+
+def abono_editable(abono):
+    """True si el abono cae dentro de la ventana de la caja abierta actual.
+
+    Solo se pueden modificar abonos registrados durante la caja que sigue
+    abierta: si esa caja ya cerró, el abono queda bloqueado.
+    """
+    caja = caja_abierta()
+    if caja is None:
+        return False
+    return caja.fecha_apertura <= abono.creado_en
+
+
 @transaction.atomic
 def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
                     cuota_id=None, observacion=''):
@@ -238,8 +278,13 @@ def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
     En créditos anotados (`es_preexistente`), además del Abono se genera una
     factura y un pago para que el dinero cuente como venta del día en caja.
 
-    Devuelve el Abono creado. Lanza ValueError si el monto es inválido.
+    Exige que haya una caja abierta. Devuelve el Abono creado. Lanza
+    ValueError si el monto es inválido o si la caja está cerrada.
     """
+    caja = caja_abierta()
+    if caja is None:
+        raise ValueError('No se puede abonar porque la caja está cerrada.')
+
     monto = Decimal(monto)
     if monto <= 0:
         raise ValueError('El monto del abono debe ser mayor a cero.')
@@ -249,58 +294,128 @@ def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
     if metodo not in ('efectivo', 'transferencia'):
         metodo = 'efectivo'
 
+    cuota_preferida = None
+    if cuota_id:
+        cuota_preferida = credito.cuotas.filter(pk=cuota_id).first()
+
     abono = Abono.objects.create(
         credito=credito,
         monto=monto,
         metodo=metodo,
         usuario=usuario,
+        cuota=cuota_preferida,
         observacion=(observacion or '').strip(),
         es_preexistente=credito.es_preexistente,
     )
 
     # Crédito anotado: el dinero debe entrar a la caja del día.
     if credito.es_preexistente:
-        _facturar_abono_preexistente(
+        factura = _facturar_abono_preexistente(
             credito, monto, metodo, usuario, observacion=observacion)
+        if factura is not None:
+            abono.factura = factura
+            abono.save(update_fields=['factura'])
 
-    # Cuotas abiertas (pendientes o parciales), de la más antigua a la más
-    # reciente. Si se indicó una cuota concreta, se aplica primero a esa.
-    abiertas = credito.cuotas.exclude(estado='pagada').order_by('numero')
-    if cuota_id:
-        elegida = abiertas.filter(pk=cuota_id).first()
-        if elegida:
-            abiertas = [elegida] + [c for c in abiertas if c.pk != elegida.pk]
-        else:
-            abiertas = list(abiertas)
-    else:
-        abiertas = list(abiertas)
+    recalcular_cuotas(credito)
+    _recalcular_saldo(credito)
+    return abono
 
-    restante = monto
-    for cuota in abiertas:
-        if restante <= 0:
-            break
-        falta = cuota.monto_faltante
-        if falta <= 0:
-            continue
-        a_pagar = falta if restante >= falta else restante
-        cuota.monto_pagado += a_pagar
-        restante -= a_pagar
-        if cuota.monto_pagado >= cuota.monto:
-            cuota.estado = 'pagada'
-            cuota.fecha_pago = timezone.localdate()
-            cuota.save(update_fields=['monto_pagado', 'estado', 'fecha_pago'])
-        else:
-            cuota.estado = 'parcial'
-            cuota.save(update_fields=['monto_pagado', 'estado'])
-        if abono.cuota_id is None:
-            abono.cuota = cuota
-            abono.save(update_fields=['cuota'])
 
-    credito.saldo_pendiente = credito.saldo_pendiente - monto
-    if credito.saldo_pendiente < 0:
-        credito.saldo_pendiente = Decimal('0')
+def _recalcular_saldo(credito):
+    """Saldo = monto total menos la suma de todos los abonos vigentes."""
+    total_abonado = credito.abonos.aggregate(
+        total=models.Sum('monto'))['total'] or Decimal('0')
+    saldo = credito.monto_total - total_abonado
+    credito.saldo_pendiente = saldo if saldo > 0 else Decimal('0')
     credito.save(update_fields=['saldo_pendiente'])
     credito.recalcular_estado()
+    return credito.saldo_pendiente
+
+
+def recalcular_cuotas(credito):
+    """Reconstruye el calendario aplicando los abonos en orden cronológico.
+
+    Deja cada cuota en 'pendiente', 'parcial' o 'pagada' según la suma de
+    abonos. Respeta la cuota preferida de cada abono (si se indicó al
+    registrarlo). Sirve tanto al registrar como al editar abonos.
+    """
+    cuotas = list(credito.cuotas.order_by('numero'))
+    if not cuotas:
+        return
+    for cuota in cuotas:
+        cuota.monto_pagado = Decimal('0')
+        cuota.estado = 'pendiente'
+        cuota.fecha_pago = None
+
+    abonos = credito.abonos.order_by('creado_en', 'pk')
+    for abono in abonos:
+        restante = abono.monto
+        if restante <= 0:
+            continue
+        if abono.cuota_id:
+            ordenadas = ([c for c in cuotas if c.pk == abono.cuota_id]
+                         + [c for c in cuotas if c.pk != abono.cuota_id])
+        else:
+            ordenadas = cuotas
+        for cuota in ordenadas:
+            if restante <= 0:
+                break
+            falta = cuota.monto - cuota.monto_pagado
+            if falta <= 0:
+                continue
+            a_pagar = falta if restante >= falta else restante
+            cuota.monto_pagado += a_pagar
+            restante -= a_pagar
+            cuota.estado = ('pagada'
+                            if cuota.monto_pagado >= cuota.monto else 'parcial')
+            if cuota.estado == 'pagada' and cuota.fecha_pago is None:
+                cuota.fecha_pago = timezone.localdate()
+
+    for cuota in cuotas:
+        cuota.save(update_fields=['monto_pagado', 'estado', 'fecha_pago'])
+
+
+@transaction.atomic
+def editar_abono(abono, nuevo_monto, usuario=None, metodo=None, observacion=None):
+    """Cambia el monto (y opcionalmente método/nota) de un abono existente.
+
+    Solo se permite mientras el abono pertenezca a la caja que sigue abierta:
+    una vez cerrada esa caja, el abono queda bloqueado. Recalcula cuotas y
+    saldo, y sincroniza la factura/pago de los créditos anotados.
+
+    Devuelve el Abono actualizado. Lanza ValueError si no se puede editar.
+    """
+    if not abono_editable(abono):
+        caja = caja_abierta()
+        if caja is None:
+            raise ValueError(
+                'No se puede modificar el abono porque la caja está cerrada.')
+        raise ValueError(
+            'Solo se pueden modificar abonos registrados durante la caja '
+            'abierta actual.')
+
+    nuevo_monto = Decimal(nuevo_monto)
+    if nuevo_monto <= 0:
+        raise ValueError('El monto del abono debe ser mayor a cero.')
+
+    credito = abono.credito
+    otros = credito.abonos.exclude(pk=abono.pk).aggregate(
+        total=models.Sum('monto'))['total'] or Decimal('0')
+    if otros + nuevo_monto > credito.monto_total:
+        raise ValueError('El abono supera el saldo pendiente del crédito.')
+
+    if metodo is not None and metodo in ('efectivo', 'transferencia'):
+        abono.metodo = metodo
+    if observacion is not None:
+        abono.observacion = observacion.strip()
+
+    abono.monto = nuevo_monto
+    abono.usuario = usuario or abono.usuario
+    abono.save(update_fields=['monto', 'metodo', 'observacion', 'usuario'])
+
+    _actualizar_factura_abono(abono, nuevo_monto)
+    recalcular_cuotas(credito)
+    _recalcular_saldo(credito)
     return abono
 
 

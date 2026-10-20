@@ -232,6 +232,12 @@ class Abono(models.Model):
         null=True, blank=True, related_name='abonos',
         verbose_name='Cuota'
     )
+    factura = models.ForeignKey(
+        'ventas.Factura', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='abonos_credito',
+        verbose_name='Factura en caja',
+        help_text='Factura generada en caja por este abono (créditos anotados).'
+    )
     monto = models.DecimalField('Monto', max_digits=12, decimal_places=2)
     metodo = models.CharField('Método', max_length=20, choices=METODOS,
         default='efectivo')

@@ -180,6 +180,12 @@
                     <h6 class="mb-0"><i class="bi bi-cash-coin"></i> Registrar abono</h6>
                 </div>
                 <div class="card-body">
+                    {% if not caja_abierta %}
+                    <div class="alert alert-warning py-2 mb-0 small">
+                        <i class="bi bi-lock"></i>
+                        La caja está cerrada. Abre la caja para registrar abonos.
+                    </div>
+                    {% else %}
                     {% if saldo_vencido > 0 %}
                     <div class="alert alert-danger py-2 mb-2 small">
                         <i class="bi bi-exclamation-triangle"></i>
@@ -224,6 +230,7 @@
                             <i class="bi bi-check-lg"></i> Registrar abono
                         </button>
                     </form>
+                    {% endif %}
                 </div>
             </div>
             {% else %}
@@ -254,6 +261,13 @@
                                     {% if abono.observacion %}· {{ abono.observacion }}{% endif %}
                                 </small>
                             </div>
+                            {% if abono.editable %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                    data-bs-toggle="modal" data-bs-target="#editarAbono{{ abono.pk }}"
+                                    title="Modificar monto">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            {% endif %}
                         </li>
                         {% empty %}
                         <li class="list-group-item text-center text-muted py-4 small">
@@ -263,6 +277,56 @@
                     </ul>
                 </div>
             </div>
+
+            {% for abono in abonos %}
+            {% if abono.editable %}
+            <div class="modal fade" id="editarAbono{{ abono.pk }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="post" action="{% url 'editar_abono' credito.id abono.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-header py-2">
+                                <h6 class="modal-title">
+                                    <i class="bi bi-pencil"></i> Modificar abono
+                                    <small class="text-muted">— {{ abono.creado_en|date:'d/m/Y H:i' }}</small>
+                                </h6>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Nuevo monto *</label>
+                                    <input type="number" name="monto" class="form-control form-control-lg"
+                                           inputmode="decimal" step="0.01" min="0.01"
+                                           value="{{ abono.monto|floatformat:2 }}" required>
+                                    <small class="text-muted">
+                                        Máximo disponible: ${{ abono.monto_maximo|mil }}
+                                    </small>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Método</label>
+                                    <select name="metodo" class="form-select">
+                                        <option value="efectivo" {% if abono.metodo == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                                        <option value="transferencia" {% if abono.metodo == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Nota (opcional)</label>
+                                    <input type="text" name="observacion" class="form-control"
+                                           maxlength="200" value="{{ abono.observacion }}">
+                                </div>
+                            </div>
+                            <div class="modal-footer py-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="bi bi-check-lg"></i> Guardar cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
         </div>
     </div>
 </div>

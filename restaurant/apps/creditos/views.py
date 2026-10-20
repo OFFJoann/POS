@@ -17,7 +17,10 @@ from apps.usuarios.decorators import permiso_required
 from .forms import CreditoPreexistenteForm
 from .models import Abono, Cliente, Credito
 from .services import (
+    abono_editable,
+    caja_abierta,
     crear_credito_preexistente,
+    editar_abono,
     enviar_recordatorio_cuota,
     enviar_recordatorio_credito,
     registrar_abono,
@@ -107,7 +110,11 @@ def detalle_credito(request, credito_id):
         pk=credito_id,
     )
     cuotas = credito.cuotas.order_by('numero')
-    abonos = credito.abonos.select_related('usuario', 'cuota')
+    abonos = list(credito.abonos.select_related('usuario', 'cuota'))
+    caja = caja_abierta()
+    for abono in abonos:
+        abono.editable = abono_editable(abono)
+        abono.monto_maximo = credito.saldo_pendiente + abono.monto
     hoy = timezone.localdate()
     proxima_cuota = credito.proxima_cuota
     puede_enviar = (
@@ -123,6 +130,8 @@ def detalle_credito(request, credito_id):
         'hoy': hoy,
         'saldo_vencido': credito.saldo_vencido,
         'puede_enviar': puede_enviar,
+        'caja_activa': caja,
+        'caja_abierta': caja is not None,
     })
 
 
@@ -215,4 +224,41 @@ def vista_enviar_recordatorio(request, credito_id):
             f'Recordatorio de la cuota {cuota.numero} enviado a {detalle}.')
     else:
         messages.error(request, f'No se pudo enviar el recordatorio: {detalle}')
+    return redirect('detalle_credito', credito_id=credito_id)
+
+
+@login_required
+@permiso_required('credito')
+def vista_editar_abono(request, credito_id, abono_id):
+    """Modifica el monto de un abono (solo POST).
+
+    Solo se permite mientras el abono pertenezca a la caja que sigue abierta.
+    """
+    credito = get_object_or_404(Credito, pk=credito_id)
+    abono = get_object_or_404(Abono, pk=abono_id, credito=credito)
+
+    if request.method != 'POST':
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    try:
+        nuevo_monto = Decimal(request.POST.get('monto', 0))
+    except (InvalidOperation, ValueError):
+        nuevo_monto = Decimal('0')
+
+    metodo = request.POST.get('metodo')
+    observar = request.POST.get('observacion')
+    observacion = observar.strip() if observar is not None else None
+
+    try:
+        editar_abono(
+            abono, nuevo_monto, usuario=request.user,
+            metodo=metodo, observacion=observacion,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    messages.success(
+        request,
+        f'Abono actualizado a ${abono.monto} correctamente.')
     return redirect('detalle_credito', credito_id=credito_id)
