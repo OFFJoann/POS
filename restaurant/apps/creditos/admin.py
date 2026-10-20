@@ -21,14 +21,15 @@ class CuotaInline(admin.TabularInline):
 @admin.register(Credito)
 class CreditoAdmin(admin.ModelAdmin):
     list_display = ('factura', 'cliente', 'monto_total', 'saldo_pendiente',
-                    'cuotas_total', 'estado', 'creado_en')
-    list_filter = ('estado',)
+                    'cuotas_total', 'es_preexistente', 'estado', 'creado_en')
+    list_filter = ('estado', 'es_preexistente')
     search_fields = ('cliente__nombre', 'factura__numero')
     inlines = (CuotaInline,)
 
 
 @admin.register(Abono)
 class AbonoAdmin(admin.ModelAdmin):
-    list_display = ('credito', 'monto', 'metodo', 'usuario', 'creado_en')
-    list_filter = ('metodo',)
+    list_display = ('credito', 'monto', 'metodo', 'es_preexistente',
+                    'usuario', 'creado_en')
+    list_filter = ('metodo', 'es_preexistente')
     search_fields = ('credito__cliente__nombre',)

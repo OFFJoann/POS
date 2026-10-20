@@ -258,8 +258,6 @@ def detalle_pedido(request, pedido_id):
     productos_por_categoria = {}
     for cat in categorias:
         prods = Producto.objects.filter(categoria=cat, estado='activo')
-        # Oculta productos sin stock en el POS (carta): solo muestran lo que hay disponible
-        prods = prods.filter(stock_actual__gt=0)
         if prods.exists():
             productos_por_categoria[cat] = prods
 
@@ -395,9 +393,9 @@ def agregar_por_referencia(request, pedido_id):
             return redirect(reverse('detalle_pedido', args=[pedido_id]) + '?foco=ref')
 
         producto = (
-            Producto.objects.filter(estado='activo', stock_actual__gt=0, codigo__iexact=texto).first()
-            or Producto.objects.filter(estado='activo', stock_actual__gt=0, nombre__iexact=texto).first()
-            or Producto.objects.filter(estado='activo', stock_actual__gt=0, nombre__icontains=texto).first()
+            Producto.objects.filter(estado='activo', codigo__iexact=texto).first()
+            or Producto.objects.filter(estado='activo', nombre__iexact=texto).first()
+            or Producto.objects.filter(estado='activo', nombre__icontains=texto).first()
         )
         if not producto:
             messages.error(request, f'No se encontró ningún producto con "{texto}".')
@@ -406,7 +404,17 @@ def agregar_por_referencia(request, pedido_id):
         detalle = agregar_producto_a_pedido(pedido, producto.pk)
         vendedor = getattr(request.user, 'vendedor', None)
         enviar_a_caja(pedido, detalle, vendedor)
-        messages.success(request, f'{producto.nombre} agregado.')
+        if not producto.disponible:
+            if producto.es_combo and producto.componentes_agotados:
+                messages.warning(
+                    request,
+                    f'{producto.nombre} está agotado (falta: '
+                    f'{", ".join(producto.componentes_agotados)}), pero se agregó.')
+            else:
+                messages.warning(
+                    request, f'{producto.nombre} está agotado, pero se agregó.')
+        else:
+            messages.success(request, f'{producto.nombre} agregado.')
 
     return redirect(reverse('detalle_pedido', args=[pedido_id]) + '?foco=ref')
 

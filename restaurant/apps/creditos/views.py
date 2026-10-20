@@ -14,8 +14,13 @@ from django.utils import timezone
 
 from apps.usuarios.decorators import permiso_required
 
+from .forms import CreditoPreexistenteForm
 from .models import Abono, Cliente, Credito
-from .services import enviar_recordatorio_cuota, registrar_abono
+from .services import (
+    crear_credito_preexistente,
+    enviar_recordatorio_cuota,
+    registrar_abono,
+)
 
 
 @login_required
@@ -57,6 +62,38 @@ def lista_creditos(request):
         'filtro': filtro,
         'q': q,
         'resumen': resumen,
+    })
+
+
+@login_required
+@permiso_required('credito')
+def vista_crear_credito_preexistente(request):
+    """Da de alta un crédito ya existente (venta antigua no registrada)."""
+    if request.method == 'POST':
+        form = CreditoPreexistenteForm(request.POST)
+        if form.is_valid():
+            datos = form.cleaned_data
+            try:
+                credito = crear_credito_preexistente(
+                    nombre_cliente=datos['nombre'],
+                    monto=datos['monto'],
+                    correo=datos.get('correo', ''),
+                    observaciones=datos.get('observaciones', ''),
+                    usuario=request.user,
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request,
+                    f'Crédito de {credito.cliente} por '
+                    f'${credito.monto_total} registrado.')
+                return redirect('detalle_credito', credito_id=credito.id)
+    else:
+        form = CreditoPreexistenteForm()
+
+    return render(request, 'creditos/crear_credito_preexistente.html', {
+        'form': form,
     })
 
 

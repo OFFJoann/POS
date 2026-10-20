@@ -53,7 +53,9 @@ class Credito(models.Model):
 
     factura = models.OneToOneField(
         'ventas.Factura', on_delete=models.PROTECT,
-        related_name='credito', verbose_name='Factura'
+        null=True, blank=True,
+        related_name='credito', verbose_name='Factura',
+        help_text='Vacío en créditos anotados de ventas ya existentes.'
     )
     cliente = models.ForeignKey(
         Cliente, on_delete=models.PROTECT,
@@ -72,6 +74,11 @@ class Credito(models.Model):
     estado = models.CharField('Estado', max_length=20, choices=ESTADOS,
         default='activo', db_index=True)
     observaciones = models.TextField('Observaciones', blank=True, default='')
+    es_preexistente = models.BooleanField(
+        'Crédito anotado', default=False, db_index=True,
+        help_text='Crédito de una venta ya existente: sin factura ni cuotas. '
+                  'Sus abonos Sí cuentan como ventas del día.'
+    )
     creado_en = models.DateTimeField('Creado', auto_now_add=True)
 
     class Meta:
@@ -120,6 +127,11 @@ class Credito(models.Model):
     @property
     def proxima_cuota(self):
         return self.cuotas.exclude(estado='pagada').order_by('numero').first()
+
+    @property
+    def tiene_calendario(self):
+        """True si el crédito tiene cuotas (los anotados no las tienen)."""
+        return self.cuotas.exists()
 
     @property
     def porcentaje_pagado(self):
@@ -228,6 +240,10 @@ class Abono(models.Model):
         null=True, verbose_name='Usuario'
     )
     observacion = models.CharField('Nota', max_length=200, blank=True, default='')
+    es_preexistente = models.BooleanField(
+        'Cuenta en caja', default=False, db_index=True,
+        help_text='Abono de un crédito anotado: se refleja como venta del día.'
+    )
     creado_en = models.DateTimeField('Fecha', auto_now_add=True)
 
     class Meta:

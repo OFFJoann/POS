@@ -1,0 +1,81 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Registrar crédito existente - El Choli{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-journal-plus"></i> Registrar crédito existente
+                </h5>
+                <a href="{% url 'lista_creditos' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="alert alert-info py-2 mb-3 small">
+                        <i class="bi bi-info-circle"></i>
+                        Registra aquí una deuda antigua que aún no estaba en el
+                        sistema. No genera factura ni cuotas: solo el saldo por
+                        cobrar. Los <strong>abonos sí contarán como ventas del
+                        día</strong> en la caja.
+                    </div>
+
+                    <div class="alert alert-warning py-2 mb-3 small">
+                        <i class="bi bi-box-seam"></i>
+                        <strong>No se piden productos:</strong> este crédito ya
+                        existía, así que no se descuenta inventario. Registrar
+                        artículos aquí descuadraría el inventario.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.nombre.label }} *</label>
+                            {{ form.nombre }}
+                            {% if form.nombre.errors %}
+                            <div class="text-danger small">{{ form.nombre.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.monto.label }} *</label>
+                            {{ form.monto }}
+                            {% if form.monto.errors %}
+                            <div class="text-danger small">{{ form.monto.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.correo.label }}</label>
+                            {{ form.correo }}
+                            {% if form.correo.errors %}
+                            <div class="text-danger small">{{ form.correo.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.observaciones.label }}</label>
+                            {{ form.observaciones }}
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-lg"></i> Registrar crédito
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

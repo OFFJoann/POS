@@ -117,6 +117,116 @@ def crear_credito(factura, nombre_cliente, num_cuotas, correo='', cedula='',
 
 
 @transaction.atomic
+def crear_credito_preexistente(nombre_cliente, monto, correo='', cedula='',
+                               telefono='', observaciones='', usuario=None):
+    """Registra un crédito ya existente que no nació de una venta del sistema.
+
+    Se usa para anotar deudas antiguas que aún no estaban en el sistema. No
+    crea Factura ni calendario de cuotas: solo el saldo a cobrar. A diferencia
+    de un crédito normal, los abonos que el cliente vaya haciendo Sí cuentan
+    como ventas del día (ver `registrar_abono`).
+    """
+    monto = Decimal(str(monto))
+    if monto <= 0:
+        raise ValueError('El monto del crédito debe ser mayor a cero.')
+    nombre_cliente = (nombre_cliente or '').strip()
+    if not nombre_cliente:
+        raise ValueError('Debes indicar el nombre del cliente.')
+
+    cliente = _obtener_cliente(nombre_cliente, correo, cedula, telefono)
+    return Credito.objects.create(
+        factura=None,
+        cliente=cliente,
+        cuotas_total=0,
+        frecuencia='mensual',
+        monto_total=monto,
+        saldo_pendiente=monto,
+        es_preexistente=True,
+        observaciones=(observaciones or '').strip(),
+    )
+
+
+# ─── Abonos ──────────────────────────────────────────────────────────────────
+
+def _puesto_credito():
+    """Puesto virtual usado para facturar los abonos de créditos anotados.
+
+    Crea (si no existe) una Mesa tipo caja fuera de la numeración normal, para
+    que los abonos aparezcan como facturas de caja sin mezclarse con las mesas.
+    """
+    from apps.mesas.models import Mesa
+    puesto, _ = Mesa.objects.get_or_create(
+        tipo='caja', numero=9999,
+        defaults={'estado': 'libre', 'activa': False},
+    )
+    return puesto
+
+
+def _mesero_para_abono(usuario):
+    """Vendedor con el que se firma la factura de un abono."""
+    from apps.usuarios.models import Vendedor
+    vendedor = getattr(usuario, 'vendedor', None)
+    if vendedor is not None:
+        return vendedor
+    return Vendedor.objects.filter(activo=True).first() or Vendedor.objects.first()
+
+
+@transaction.atomic
+def _facturar_abono_preexistente(credito, monto, metodo, usuario, observacion=''):
+    """Registra el abono como una factura+pago para que sume al cierre de caja.
+
+    Devuelve la Factura creada (o None si no se pudo: sin vendedor). Se usa una
+    factura "de un solo renglón" con el monto del abono; el pedido no lleva
+    productos porque no corresponde a una venta de artículos.
+    """
+    from apps.mesas.models import Pedido
+    from apps.ventas.models import Factura, Pago
+    from django.db.models import Max
+
+    mesero = _mesero_para_abono(usuario)
+    if mesero is None:
+        return None
+
+    puesto = _puesto_credito()
+    pedido = Pedido.objects.create(
+        mesa=puesto,
+        mesero=mesero,
+        subtotal=monto,
+        total=monto,
+        saldo_pendiente=0,
+        estado='pagado',
+        fecha_cierre=timezone.now(),
+    )
+
+    ultimo_numero = Factura.objects.aggregate(maximo=Max('numero'))['maximo'] or 0
+    factura = Factura(
+        numero=ultimo_numero + 1,
+        pedido=pedido,
+        mesa=puesto,
+        mesero=mesero,
+        metodo_pago=metodo,
+        subtotal=monto,
+        descuento=Decimal('0'),
+        total=monto,
+        valor_recibido=monto,
+        cambio=Decimal('0'),
+    )
+    factura._skip_inventory_deduction = True
+    factura.save()
+
+    Pago.objects.create(
+        factura=factura,
+        pedido=pedido,
+        metodo=metodo,
+        monto=monto,
+        valor_recibido=monto,
+        cambio=Decimal('0'),
+        usuario=usuario,
+    )
+    return factura
+
+
+@transaction.atomic
 def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
                     cuota_id=None, observacion=''):
     """Registra un abono y lo aplica a las cuotas abiertas más antiguas.
@@ -124,6 +234,9 @@ def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
     Un abono puede dejar una cuota 'parcial' si no alcanza a cubrirla
     completa; en ese caso se acumula en `Cuota.monto_pagado` y la cuota se
     etiqueta como parcial hasta que se complete.
+
+    En créditos anotados (`es_preexistente`), además del Abono se genera una
+    factura y un pago para que el dinero cuente como venta del día en caja.
 
     Devuelve el Abono creado. Lanza ValueError si el monto es inválido.
     """
@@ -133,13 +246,22 @@ def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
     if monto > credito.saldo_pendiente:
         raise ValueError('El abono supera el saldo pendiente del crédito.')
 
+    if metodo not in ('efectivo', 'transferencia'):
+        metodo = 'efectivo'
+
     abono = Abono.objects.create(
         credito=credito,
         monto=monto,
         metodo=metodo,
         usuario=usuario,
         observacion=(observacion or '').strip(),
+        es_preexistente=credito.es_preexistente,
     )
+
+    # Crédito anotado: el dinero debe entrar a la caja del día.
+    if credito.es_preexistente:
+        _facturar_abono_preexistente(
+            credito, monto, metodo, usuario, observacion=observacion)
 
     # Cuotas abiertas (pendientes o parciales), de la más antigua a la más
     # reciente. Si se indicó una cuota concreta, se aplica primero a esa.

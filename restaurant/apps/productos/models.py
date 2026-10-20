@@ -117,6 +117,32 @@ class Producto(models.Model):
         """Indica si el stock está por debajo del mínimo."""
         return self.stock_actual <= self.stock_minimo
 
+    @property
+    def componentes_agotados(self):
+        """Componentes sin stock suficiente para armar una unidad del combo.
+
+        Solo aplica a combos. Devuelve una lista de nombres de los productos
+        cuyo stock no alcanza para la cantidad requerida por el combo.
+        """
+        if not self.es_combo:
+            return []
+        agotados = []
+        for comp in self.componentes.select_related('producto').all():
+            if comp.producto.stock_actual < comp.cantidad:
+                agotados.append(comp.producto.nombre)
+        return agotados
+
+    @property
+    def disponible(self):
+        """True si el producto puede venderse (no agotado).
+
+        Los combos están disponibles aunque su propio stock sea 0, siempre que
+        todos sus componentes tengan inventario suficiente.
+        """
+        if self.es_combo:
+            return not self.componentes_agotados
+        return self.stock_actual > 0
+
 
 class ComboComponente(models.Model):
     """
