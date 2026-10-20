@@ -338,7 +338,7 @@ def cuotas_para_recordatorio():
 
 
 def enviar_recordatorio_cuota(cuota, tipo='antes'):
-    """Envía el correo de recordatorio de una cuota.
+    """Envía un correo recordando una cuota del crédito.
 
     `tipo` es 'antes' (un día antes) o 'vence' (el día del vencimiento).
     Marca el aviso como enviado para no repetirlo. Retorna (ok, detalle).
@@ -404,4 +404,49 @@ def enviar_recordatorio_cuota(cuota, tipo='antes'):
         cuota.save(update_fields=['aviso_antes_enviado'])
     # 'manual' no marca ningún aviso: el envío automático puede seguir
     # enviando el suyo (antes/vence) cuando le toque.
+    return True, correo
+
+
+def enviar_recordatorio_credito(credito, tipo='manual'):
+    """Envía un correo recordando el saldo de un crédito sin cuotas.
+
+    Pensado para créditos preexistentes (anotados), que no tienen cuotas
+    ni fechas de vencimiento. Recuerda el saldo pendiente total.
+    Retorna (ok, detalle). Nunca lanza excepciones.
+    """
+    from django.core.mail import EmailMessage
+    from apps.configuracion.models import Configuracion
+
+    cliente = credito.cliente
+    correo = (cliente.correo or '').strip()
+    if not correo:
+        return False, 'El cliente no tiene correo registrado.'
+
+    config = Configuracion.obtener()
+    empresa = config.nombre_empresa or 'El Choli'
+
+    asunto = 'Recordatorio de pago - %s' % empresa
+    cuerpo = (
+        'Hola {nombre},\n\n'
+        'Te recordamos que tienes un saldo pendiente con nosotros.\n\n'
+        'Saldo pendiente: ${saldo}\n'
+        'Monto original: ${monto}\n'
+        'Abonado hasta ahora: ${abonado}\n\n'
+        'Si ya pagaste, puedes ignorar este mensaje.\n\n'
+        'Gracias por su preferencia.\n'
+        '{empresa}'
+    ).format(
+        nombre=cliente.nombre,
+        saldo=_fmt(credito.saldo_pendiente),
+        monto=_fmt(credito.monto_total),
+        abonado=_fmt(credito.monto_pagado),
+        empresa=empresa,
+    )
+
+    try:
+        email = EmailMessage(subject=asunto, body=cuerpo, to=[correo])
+        email.send()
+    except Exception as exc:
+        return False, str(exc)
+
     return True, correo

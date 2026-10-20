@@ -19,6 +19,7 @@ from .models import Abono, Cliente, Credito
 from .services import (
     crear_credito_preexistente,
     enviar_recordatorio_cuota,
+    enviar_recordatorio_credito,
     registrar_abono,
 )
 
@@ -111,7 +112,8 @@ def detalle_credito(request, credito_id):
     proxima_cuota = credito.proxima_cuota
     puede_enviar = (
         bool((credito.cliente.correo or '').strip())
-        and proxima_cuota is not None
+        and credito.saldo_pendiente > 0
+        and (proxima_cuota is not None or credito.es_preexistente)
     )
 
     return render(request, 'creditos/detalle_credito.html', {
@@ -193,6 +195,16 @@ def vista_enviar_recordatorio(request, credito_id):
 
     cuota = credito.proxima_cuota
     if cuota is None:
+        if credito.es_preexistente:
+            ok, detalle = enviar_recordatorio_credito(credito, 'manual')
+            if ok:
+                messages.success(
+                    request,
+                    f'Recordatorio de saldo pendiente enviado a {detalle}.')
+            else:
+                messages.error(
+                    request, f'No se pudo enviar el recordatorio: {detalle}')
+            return redirect('detalle_credito', credito_id=credito_id)
         messages.error(request, 'Este crédito no tiene cuotas pendientes.')
         return redirect('detalle_credito', credito_id=credito_id)
 
