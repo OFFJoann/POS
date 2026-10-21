@@ -15,4 +15,6 @@ urlpatterns = [
     path('egresos/categorias/', views.gestionar_categorias_egreso, name='gestionar_categorias_egreso'),
     path('egresos/categorias/eliminar/<int:pk>/', views.eliminar_categoria_egreso, name='eliminar_categoria_egreso'),
     path('consolidados/', views.lista_consolidados, name='consolidados'),
+    path('facturas/<int:factura_id>/editar/', views.editar_factura,
+         name='editar_factura'),
 ]

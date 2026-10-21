@@ -184,6 +184,13 @@
                     <div class="alert alert-warning py-2 mb-0 small">
                         <i class="bi bi-lock"></i>
                         La caja está cerrada. Abre la caja para registrar abonos.
+                        {% if es_admin %}
+                        <span class="d-block mt-1">
+                            <i class="bi bi-shield-lock"></i>
+                            Como administrador puedes modificar abonos ya
+                            registrados con el lápiz del historial.
+                        </span>
+                        {% endif %}
                     </div>
                     {% else %}
                     {% if saldo_vencido > 0 %}

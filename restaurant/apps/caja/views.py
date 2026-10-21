@@ -3,7 +3,7 @@ Vistas de la aplicación caja.
 
 Incluye apertura, cierre de caja y gestión de egresos.
 """
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -251,9 +251,20 @@ def lista_consolidados(request):
     for c in cierres:
         facturas = c.facturas_del_dia.select_related('mesa', 'mesero').prefetch_related('pedido__detalles__producto')
 
+        # Abonos de créditos anotados: nombre del cliente por factura, para que
+        # en el consolidado no aparezcan como un "mesero" cualquiera.
+        from apps.creditos.models import Abono
+        clientes_por_factura = {}
+        for ab in Abono.objects.filter(
+            factura__in=facturas,
+        ).select_related('credito__cliente'):
+            clientes_por_factura[ab.factura_id] = ab.credito.cliente.nombre
+
         # Agrupar facturas por puesto (mesa o caja)
         mesas_dict = defaultdict(list)
         for f in facturas:
+            f.es_abono_credito = f.id in clientes_por_factura
+            f.cliente_credito = clientes_por_factura.get(f.id, '')
             mesas_dict[(f.mesa.tipo, f.mesa.numero)].append(f)
 
         mesas_agrupadas = []
@@ -326,11 +337,55 @@ def lista_consolidados(request):
     return render(request, 'caja/consolidados.html', {
         'datos_cierres': datos_cierres,
         'puede_ver_totales': _puede_ver_totales(request.user),
+        'es_admin': _es_admin(request.user),
         'desde': desde,
         'hasta': hasta,
         'rango_desde': rango_desde,
         'rango_hasta': rango_hasta,
     })
+
+
+def _es_admin(user):
+    """True si el usuario es administrador (is_staff o superuser)."""
+    return bool(getattr(user, 'is_staff', False)
+                or getattr(user, 'is_superuser', False))
+
+
+@login_required
+@admin_required
+def editar_factura(request, factura_id):
+    """Permite al administrador cambiar el valor de una factura (solo POST).
+
+    Funciona incluso si la factura ya quedó en un consolidado (caja cerrada):
+    sincroniza el pago y recalcula el snapshot del cierre correspondiente.
+    """
+    from apps.ventas.models import Factura
+    from apps.ventas.services import editar_factura as svc_editar_factura
+
+    factura = get_object_or_404(Factura, pk=factura_id)
+    origen = request.POST.get('origen') or request.GET.get('origen') or ''
+
+    if request.method != 'POST':
+        return redirect('consolidados')
+
+    try:
+        nuevo_total = Decimal(request.POST.get('total', ''))
+    except (InvalidOperation, TypeError, ValueError):
+        messages.error(request, 'Ingresa un monto válido.')
+        return redirect('consolidados')
+
+    try:
+        svc_editar_factura(factura, nuevo_total, usuario=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('consolidados')
+
+    messages.success(
+        request,
+        f'Factura #{factura.numero} actualizada a ${factura.total}.')
+    if origen.startswith('/'):
+        return redirect(origen)
+    return redirect('consolidados')
 
 
 @login_required

@@ -27,6 +27,12 @@ from .services import (
 )
 
 
+def _es_admin(user):
+    """True si el usuario es administrador (is_staff o superuser)."""
+    return bool(getattr(user, 'is_staff', False)
+                or getattr(user, 'is_superuser', False))
+
+
 @login_required
 @permiso_required('credito')
 def lista_creditos(request):
@@ -112,8 +118,9 @@ def detalle_credito(request, credito_id):
     cuotas = credito.cuotas.order_by('numero')
     abonos = list(credito.abonos.select_related('usuario', 'cuota'))
     caja = caja_abierta()
+    es_admin = _es_admin(request.user)
     for abono in abonos:
-        abono.editable = abono_editable(abono)
+        abono.editable = es_admin or abono_editable(abono)
         abono.monto_maximo = credito.saldo_pendiente + abono.monto
     hoy = timezone.localdate()
     proxima_cuota = credito.proxima_cuota
@@ -132,6 +139,7 @@ def detalle_credito(request, credito_id):
         'puede_enviar': puede_enviar,
         'caja_activa': caja,
         'caja_abierta': caja is not None,
+        'es_admin': es_admin,
     })
 
 
@@ -253,6 +261,7 @@ def vista_editar_abono(request, credito_id, abono_id):
         editar_abono(
             abono, nuevo_monto, usuario=request.user,
             metodo=metodo, observacion=observacion,
+            forzar=_es_admin(request.user),
         )
     except ValueError as exc:
         messages.error(request, str(exc))

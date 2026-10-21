@@ -171,7 +171,13 @@
                                                     #{{ f.numero }}
                                                     <small class="text-muted ms-1 d-none d-sm-inline">{{ f.created_at|date:'H:i' }}</small>
                                                 </td>
-                                                <td class="text-truncate">{{ f.mesero }}</td>
+                                                <td class="text-truncate">
+                                                    {% if f.es_abono_credito %}
+                                                    <span class="badge bg-info text-dark me-1">Abono</span>{{ f.cliente_credito }}
+                                                    {% else %}
+                                                    {{ f.mesero }}
+                                                    {% endif %}
+                                                </td>
                                                 <td>
                                                     {% if f.metodo_pago == 'efectivo' %}
                                                     <span class="badge bg-success">Efectivo</span>
@@ -183,7 +189,16 @@
                                                     <span class="badge bg-secondary">Cortesía</span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-end pe-2 fw-bold">${{ f.total|mil }}</td>
+                                                <td class="text-end pe-2 fw-bold">
+                                                    ${{ f.total|mil }}
+                                                    {% if es_admin %}
+                                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-secondary"
+                                                            data-bs-toggle="modal" data-bs-target="#editarFactura{{ f.id }}"
+                                                            title="Editar valor de la factura" onclick="event.stopPropagation()">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                </td>
                                             </tr>
                                             <!-- Detalle de productos de la factura -->
                                             <tr class="collapse" id="factura-{{ uid }}-{{ f.id }}">
@@ -223,6 +238,53 @@
                                                     </div>
                                                 </td>
                                             </tr>
+                                            {% if es_admin %}
+                                            <div class="modal fade" id="editarFactura{{ f.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content">
+                                                        <form method="post" action="{% url 'editar_factura' f.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="origen" value="{% url 'consolidados' %}">
+                                                            <div class="modal-header py-2">
+                                                                <h6 class="modal-title">
+                                                                    <i class="bi bi-pencil"></i> Editar factura #{{ f.numero }}
+                                                                </h6>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <p class="small text-muted mb-2">
+                                                                    {% if f.es_abono_credito %}
+                                                                    Abono del cliente <strong>{{ f.cliente_credito }}</strong>.
+                                                                    {% else %}
+                                                                    {{ f.mesa }} · {{ f.mesero }} · {{ f.created_at|date:'d/m/Y H:i' }}
+                                                                    {% endif %}
+                                                                </p>
+                                                                <div class="mb-2">
+                                                                    <label class="form-label small mb-1">Nuevo total *</label>
+                                                                    <input type="number" name="total" class="form-control form-control-lg"
+                                                                           inputmode="decimal" step="0.01" min="0"
+                                                                           value="{{ f.total|floatformat:2 }}" required>
+                                                                    <small class="text-muted">
+                                                                        Actual: ${{ f.total|mil }} · Subtotal: ${{ f.subtotal|mil }}
+                                                                    </small>
+                                                                </div>
+                                                                <div class="alert alert-warning py-2 mb-0 small">
+                                                                    <i class="bi bi-exclamation-triangle"></i>
+                                                                    Se ajustará el pago y, si la caja ya está cerrada,
+                                                                    el consolidado del día se recalculará.
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer py-2">
+                                                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                                                                <button type="submit" class="btn btn-success btn-sm">
+                                                                    <i class="bi bi-check-lg"></i> Guardar
+                                                                </button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
                                             {% endfor %}
                                         </tbody>
                                     </table>

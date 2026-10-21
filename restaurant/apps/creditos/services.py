@@ -376,16 +376,19 @@ def recalcular_cuotas(credito):
 
 
 @transaction.atomic
-def editar_abono(abono, nuevo_monto, usuario=None, metodo=None, observacion=None):
+def editar_abono(abono, nuevo_monto, usuario=None, metodo=None, observacion=None,
+                 forzar=False):
     """Cambia el monto (y opcionalmente método/nota) de un abono existente.
 
-    Solo se permite mientras el abono pertenezca a la caja que sigue abierta:
-    una vez cerrada esa caja, el abono queda bloqueado. Recalcula cuotas y
-    saldo, y sincroniza la factura/pago de los créditos anotados.
+    Por defecto solo se permite mientras el abono pertenezca a la caja que
+    sigue abierta: una vez cerrada esa caja, el abono queda bloqueado. Los
+    administradores pasan `forzar=True` para editar abonos ya consolidados,
+    y en ese caso se recalcula el snapshot del cierre afectado. Recalcula
+    cuotas y saldo, y sincroniza la factura/pago de los créditos anotados.
 
     Devuelve el Abono actualizado. Lanza ValueError si no se puede editar.
     """
-    if not abono_editable(abono):
+    if not forzar and not abono_editable(abono):
         caja = caja_abierta()
         if caja is None:
             raise ValueError(
@@ -416,6 +419,9 @@ def editar_abono(abono, nuevo_monto, usuario=None, metodo=None, observacion=None
     _actualizar_factura_abono(abono, nuevo_monto)
     recalcular_cuotas(credito)
     _recalcular_saldo(credito)
+    if forzar and abono.factura_id:
+        from apps.ventas.services import recalcular_cierre_de_factura
+        recalcular_cierre_de_factura(abono.factura)
     return abono
 
 

@@ -389,6 +389,103 @@ def generar_reporte_ventas_pdf(facturas, fecha_generacion):
     return response
 
 
+def recalcular_cierre_de_factura(factura):
+    """Recalcula el snapshot del CierreCaja que contiene a la factura.
+
+    Se usa cuando el administrador edita el valor de una factura ya
+    consolidada: el cierre del día debe reflejar los montos vigentes. No hace
+    nada si la factura pertenece a una caja aún abierta (no hay snapshot).
+    """
+    from apps.caja.models import CierreCaja
+    cierre = CierreCaja.objects.filter(
+        caja__fecha_apertura__lte=factura.created_at,
+        fecha_cierre__gte=factura.created_at,
+    ).first()
+    if cierre is None:
+        return None
+    caja = cierre.caja
+    cierre.total_ventas_efectivo = caja.total_ventas_efectivo
+    cierre.total_ventas_transferencia = caja.total_ventas_transferencia
+    cierre.total_ventas_credito = caja.total_ventas_credito
+    cierre.total_ventas = caja.total_ventas
+    cierre.total_egresos = caja.total_egresos
+    cierre.total_egresos_efectivo = caja.total_egresos_efectivo
+    cierre.total_egresos_transferencia = caja.total_egresos_transferencia
+    cierre.dinero_esperado = caja.dinero_esperado
+    cierre.diferencia = cierre.efectivo_conteo - caja.dinero_esperado
+    cierre.save(update_fields=[
+        'total_ventas_efectivo', 'total_ventas_transferencia',
+        'total_ventas_credito', 'total_ventas', 'total_egresos',
+        'total_egresos_efectivo', 'total_egresos_transferencia',
+        'dinero_esperado', 'diferencia',
+    ])
+    return cierre
+
+
+def editar_factura(factura, nuevo_total, usuario=None):
+    """Cambia el valor de una factura (solo administradores).
+
+    Ajusta subtotal/descuento para que cuadren con el nuevo total, sincroniza
+    los Pago(s) y el pedido, y recalcula el CierreCaja si la factura ya estaba
+    consolidada. No re-descuenta inventario.
+
+    Devuelve la Factura actualizada. Lanza ValueError si el monto es inválido.
+    """
+    from decimal import Decimal
+    from django.db import transaction
+    from django.db.models import Sum
+    from .models import Pago
+
+    nuevo_total = Decimal(str(nuevo_total))
+    if nuevo_total < 0:
+        raise ValueError('El total de la factura no puede ser negativo.')
+
+    with transaction.atomic():
+        factura.total = nuevo_total
+        # El descuento absorbe la diferencia mientras no supere el subtotal;
+        # si el nuevo total supera el subtotal, se ajusta el subtotal.
+        if nuevo_total <= factura.subtotal:
+            factura.descuento = factura.subtotal - nuevo_total
+        else:
+            factura.subtotal = nuevo_total
+            factura.descuento = Decimal('0')
+
+        # El pedido debe reflejar el nuevo total (mismo subtotal facturado).
+        from apps.mesas.models import Pedido
+        if factura.pedido_id:
+            Pedido.objects.filter(pk=factura.pedido_id).update(
+                subtotal=factura.subtotal,
+                descuento=factura.descuento,
+                total=nuevo_total,
+            )
+
+        # Los pagos deben sumar exactamente el nuevo total.
+        pagos = list(factura.pagos.order_by('created_at', 'pk'))
+        if pagos:
+            pagados = factura.pagos.aggregate(t=Sum('monto'))['t'] or Decimal('0')
+            if len(pagos) == 1:
+                pago = pagos[0]
+                pago.monto = nuevo_total
+                pago.valor_recibido = nuevo_total
+                pago.save(update_fields=['monto', 'valor_recibido'])
+            else:
+                # Ajusta el último pago por la diferencia para cuadrar.
+                ultimo = pagos[-1]
+                nuevo_ultimo = ultimo.monto + (nuevo_total - pagados)
+                if nuevo_ultimo < 0:
+                    nuevo_ultimo = Decimal('0')
+                ultimo.monto = nuevo_ultimo
+                ultimo.valor_recibido = nuevo_ultimo
+                ultimo.save(update_fields=['monto', 'valor_recibido'])
+
+        factura.valor_recibido = nuevo_total
+        factura.save(update_fields=[
+            'subtotal', 'descuento', 'total', 'valor_recibido'])
+
+    recalcular_cierre_de_factura(factura)
+    return factura
+
+
 def comisiones_por_vendedor(desde=None, hasta=None, mesero=None):
     """
     Retorna las comisiones por vendedor en el rango dado, con su desglose.
