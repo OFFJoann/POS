@@ -23,6 +23,7 @@ from .forms import AgregarProductoForm, DescuentoForm, MesaForm
 from apps.productos.models import Producto, Categoria
 from apps.usuarios.decorators import admin_required, permiso_required
 from apps.usuarios.models import Vendedor
+from apps.creditos.views import selector_cliente_contexto
 
 
 def _autorizado_pedido(user, pedido, codigo, request):
@@ -281,6 +282,7 @@ def detalle_pedido(request, pedido_id):
         'form_descuento': form_descuento,
         'vendedores': vendedores,
         'es_caja': pedido.mesa.tipo == 'caja',
+        'selector': selector_cliente_contexto(),
     })
 
 
@@ -637,6 +639,7 @@ def cobrar_pedido(request, pedido_id):
         # Datos del crédito: cliente y calendario de cuotas.
         credito_cliente = ''
         credito_correo = ''
+        credito_cliente_obj = None
         credito_cuotas = 1
         credito_frecuencia = 'mensual'
         if metodo_pago == 'credito':
@@ -649,8 +652,21 @@ def cobrar_pedido(request, pedido_id):
                 messages.error(request, 'No tienes permiso para otorgar créditos.')
                 return redirect('detalle_pedido', pedido_id=pedido_id)
 
-            credito_cliente = (request.POST.get('cliente_nombre') or '').strip()
-            credito_correo = (request.POST.get('cliente_correo') or '').strip()
+            # Cliente: uno de la lista (cliente_id) o uno nuevo (nombre/correo).
+            from apps.creditos.models import Cliente
+            cliente_id = request.POST.get('cliente_id') or None
+            if cliente_id:
+                credito_cliente_obj = Cliente.objects.filter(pk=cliente_id).first()
+                if credito_cliente_obj is None:
+                    if es_ajax:
+                        return JsonResponse({'ok': False, 'error': 'El cliente seleccionado no existe.'})
+                    messages.error(request, 'El cliente seleccionado no existe.')
+                    return redirect('detalle_pedido', pedido_id=pedido_id)
+                credito_cliente = credito_cliente_obj.nombre
+                credito_correo = credito_cliente_obj.correo
+            else:
+                credito_cliente = ' '.join((request.POST.get('cliente_nombre') or '').split())
+                credito_correo = (request.POST.get('cliente_correo') or '').strip()
             try:
                 credito_cuotas = int(request.POST.get('cliente_cuotas') or 1)
             except (TypeError, ValueError):
@@ -731,6 +747,7 @@ def cobrar_pedido(request, pedido_id):
                 observaciones='Venta a crédito',
                 monto=monto_a_cobrar,
                 frecuencia=credito_frecuencia,
+                cliente=credito_cliente_obj,
             )
 
         # Actualizar estado

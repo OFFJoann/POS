@@ -38,6 +38,56 @@ def _obtener_cliente(nombre, correo='', cedula='', telefono=''):
         nombre=nombre, correo=correo, cedula=cedula, telefono=telefono)
 
 
+def resolver_cliente(cliente_id=None, nombre='', correo=''):
+    """Cliente elegido de la lista (`cliente_id`) o uno nuevo por nombre/correo.
+
+    Un cliente "nuevo" con el mismo nombre y correo de uno existente reutiliza
+    ese registro para no duplicarlo. Lanza ValueError si no hay datos.
+    """
+    if cliente_id:
+        cliente = Cliente.objects.filter(pk=cliente_id).first()
+        if cliente is None:
+            raise ValueError('El cliente seleccionado no existe.')
+        return cliente
+    nombre = ' '.join((nombre or '').split())
+    correo = (correo or '').strip()
+    if not nombre:
+        raise ValueError('Selecciona un cliente o escribe el nombre del nuevo.')
+    if len(nombre) > 150:
+        raise ValueError('El nombre del cliente es demasiado largo.')
+    if correo:
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
+        try:
+            validate_email(correo)
+        except ValidationError:
+            raise ValueError('El correo del cliente no es válido.')
+    return _obtener_cliente(nombre, correo)
+
+
+def guardar_cliente(nombre, correo='', cliente=None):
+    """Crea un cliente o edita el dado (solo nombre y correo).
+
+    No permite dos clientes con el mismo nombre y correo. Lanza ValueError si
+    los datos no son válidos.
+    """
+    nombre = ' '.join((nombre or '').split())
+    correo = (correo or '').strip()
+    if not nombre:
+        raise ValueError('Debes indicar el nombre del cliente.')
+    repetido = Cliente.objects.filter(nombre__iexact=nombre, correo__iexact=correo)
+    if cliente is not None:
+        repetido = repetido.exclude(pk=cliente.pk)
+    if repetido.exists():
+        raise ValueError('Ya existe un cliente con ese nombre y correo.')
+    if cliente is None:
+        return Cliente.objects.create(nombre=nombre, correo=correo)
+    cliente.nombre = nombre
+    cliente.correo = correo
+    cliente.save(update_fields=['nombre', 'correo'])
+    return cliente
+
+
 def _ultimo_dia(anio, mes):
     """Último día del mes dado."""
     return date(anio, mes, calendar.monthrange(anio, mes)[1])
@@ -72,7 +122,8 @@ def _fechas_vencimiento(fecha_base, n, frecuencia):
 
 @transaction.atomic
 def crear_credito(factura, nombre_cliente, num_cuotas, correo='', cedula='',
-                  telefono='', observaciones='', monto=None, frecuencia='mensual'):
+                  telefono='', observaciones='', monto=None, frecuencia='mensual',
+                  cliente=None):
     """Crea el crédito (y su calendario de cuotas) para una factura.
 
     El total se divide en `num_cuotas` iguales sin interés; el redondeo de los
@@ -83,12 +134,16 @@ def crear_credito(factura, nombre_cliente, num_cuotas, correo='', cedula='',
 
     `frecuencia` define el calendario: 'mensual' (último día de cada mes) o
     'quincenal' (día 15 y último día de cada mes).
+
+    `cliente` es un Cliente ya elegido; si no se pasa, se busca o crea con
+    `nombre_cliente` y `correo`.
     """
     num_cuotas = max(1, int(num_cuotas))
     total = Decimal(monto if monto is not None else factura.total)
     if frecuencia not in ('mensual', 'quincenal'):
         frecuencia = 'mensual'
-    cliente = _obtener_cliente(nombre_cliente, correo, cedula, telefono)
+    if cliente is None:
+        cliente = _obtener_cliente(nombre_cliente, correo, cedula, telefono)
 
     credito = Credito.objects.create(
         factura=factura,
@@ -99,10 +154,16 @@ def crear_credito(factura, nombre_cliente, num_cuotas, correo='', cedula='',
         saldo_pendiente=total,
         observaciones=(observaciones or '').strip(),
     )
+    _crear_cuotas(credito, timezone.localdate())
+    return credito
 
+
+def _crear_cuotas(credito, fecha_base):
+    """Genera el calendario de cuotas iguales del crédito desde `fecha_base`."""
+    total = credito.monto_total
+    num_cuotas = credito.cuotas_total
     base = (total / num_cuotas).quantize(Decimal('0.01'), ROUND_HALF_UP)
-    fecha_base = timezone.localdate()
-    vencimientos = _fechas_vencimiento(fecha_base, num_cuotas, frecuencia)
+    vencimientos = _fechas_vencimiento(fecha_base, num_cuotas, credito.frecuencia)
     acumulado = Decimal('0')
     for i in range(1, num_cuotas + 1):
         monto_cuota = base if i < num_cuotas else (total - acumulado)
@@ -113,12 +174,12 @@ def crear_credito(factura, nombre_cliente, num_cuotas, correo='', cedula='',
             fecha_vencimiento=vencimientos[i - 1],
             monto=monto_cuota,
         )
-    return credito
 
 
 @transaction.atomic
 def crear_credito_preexistente(nombre_cliente, monto, correo='', cedula='',
-                               telefono='', observaciones='', usuario=None):
+                               telefono='', observaciones='', usuario=None,
+                               cliente=None):
     """Registra un crédito ya existente que no nació de una venta del sistema.
 
     Se usa para anotar deudas antiguas que aún no estaban en el sistema. No
@@ -129,11 +190,11 @@ def crear_credito_preexistente(nombre_cliente, monto, correo='', cedula='',
     monto = Decimal(str(monto))
     if monto <= 0:
         raise ValueError('El monto del crédito debe ser mayor a cero.')
-    nombre_cliente = (nombre_cliente or '').strip()
-    if not nombre_cliente:
-        raise ValueError('Debes indicar el nombre del cliente.')
-
-    cliente = _obtener_cliente(nombre_cliente, correo, cedula, telefono)
+    if cliente is None:
+        nombre_cliente = (nombre_cliente or '').strip()
+        if not nombre_cliente:
+            raise ValueError('Debes indicar el nombre del cliente.')
+        cliente = _obtener_cliente(nombre_cliente, correo, cedula, telefono)
     return Credito.objects.create(
         factura=None,
         cliente=cliente,
@@ -144,6 +205,26 @@ def crear_credito_preexistente(nombre_cliente, monto, correo='', cedula='',
         es_preexistente=True,
         observaciones=(observaciones or '').strip(),
     )
+
+
+def resumen_creditos():
+    """Totales de cartera: cantidad por estado y saldo por cobrar.
+
+    `saldo_total` es lo que falta por cobrar de los créditos activos y
+    vencidos; `saldo_vencido` es la parte atrasada (cuotas ya vencidas).
+    """
+    todos = Credito.objects.all()
+    abiertos = todos.filter(estado__in=['activo', 'vencido'])
+    return {
+        'activos': abiertos.count(),
+        'vencidos': todos.filter(estado='vencido').count(),
+        'pagados': todos.filter(estado='pagado').count(),
+        'saldo_total': abiertos.aggregate(
+            t=models.Sum('saldo_pendiente'))['t'] or Decimal('0'),
+        'saldo_vencido': sum(
+            (c.saldo_vencido for c in todos.filter(estado='vencido')),
+            Decimal('0')),
+    }
 
 
 # ─── Abonos ──────────────────────────────────────────────────────────────────
@@ -423,6 +504,185 @@ def editar_abono(abono, nuevo_monto, usuario=None, metodo=None, observacion=None
         from apps.ventas.services import recalcular_cierre_de_factura
         recalcular_cierre_de_factura(abono.factura)
     return abono
+
+
+# ─── Edición y eliminación de créditos ───────────────────────────────────────
+
+def _regenerar_cuotas(credito):
+    """Rehace el calendario tras cambiar monto, número de cuotas o frecuencia.
+
+    Las fechas parten del día en que se creó el crédito. Los abonos que
+    apuntaban a una cuota conservan la preferencia por su número de cuota
+    (si sigue existiendo); luego se reaplican todos los abonos.
+    """
+    preferidas = {
+        abono.pk: abono.cuota.numero
+        for abono in credito.abonos.select_related('cuota')
+        if abono.cuota_id
+    }
+    credito.cuotas.all().delete()
+    _crear_cuotas(credito, timezone.localdate(credito.creado_en))
+    nuevas = {c.numero: c for c in credito.cuotas.all()}
+    for abono_pk, numero in preferidas.items():
+        if numero in nuevas:
+            Abono.objects.filter(pk=abono_pk).update(cuota=nuevas[numero])
+
+
+def credito_bloqueado(credito):
+    """True si el crédito ya tiene abonos (de venta o anotado).
+
+    En ese caso no se puede editar ni eliminar: ya respalda pagos reales del
+    cliente.
+    """
+    return credito.abonos.exists()
+
+
+MENSAJE_BLOQUEADO = ('Este crédito ya tiene abonos: no se puede editar ni '
+                     'eliminar.')
+
+
+def _actualizar_factura_credito(credito, monto_anterior):
+    """Ajusta la factura de la venta al nuevo monto del crédito.
+
+    La diferencia se aplica al Pago con método crédito (lo que suma en
+    "ventas a crédito" de la caja) y al total de la factura y su pedido. Los
+    pagos previos en efectivo/transferencia de la misma factura no cambian.
+    Si la factura ya estaba en un cierre de caja, se recalcula.
+    """
+    from apps.mesas.models import Pedido
+    from apps.ventas.services import recalcular_cierre_de_factura
+
+    diferencia = credito.monto_total - monto_anterior
+    factura = credito.factura
+    if not diferencia or factura is None:
+        return
+
+    pago = factura.pagos.filter(metodo='credito').order_by(
+        '-created_at', '-pk').first()
+    if pago is not None:
+        pago.monto += diferencia
+        pago.save(update_fields=['monto'])
+
+    nuevo_total = factura.total + diferencia
+    # El subtotal parte del valor real de los productos vendidos; el
+    # descuento absorbe la diferencia mientras el total no lo supere.
+    productos = factura.pedido.detalles.aggregate(
+        total=models.Sum('subtotal'))['total'] or factura.subtotal
+    if nuevo_total <= productos:
+        factura.subtotal = productos
+        factura.descuento = productos - nuevo_total
+    else:
+        factura.subtotal = nuevo_total
+        factura.descuento = Decimal('0')
+    factura.total = nuevo_total
+    factura.save(update_fields=['subtotal', 'descuento', 'total'])
+    Pedido.objects.filter(pk=factura.pedido_id).update(
+        subtotal=factura.subtotal, descuento=factura.descuento,
+        total=nuevo_total)
+    recalcular_cierre_de_factura(factura)
+
+
+@transaction.atomic
+def editar_credito(credito, cliente, monto, observaciones='', cuotas_total=None,
+                   frecuencia=None):
+    """Modifica los datos de un crédito (anotado o nacido de una venta).
+
+    Cambia el cliente al que pertenece (uno de la lista o uno nuevo, ver
+    `resolver_cliente`), el monto y las observaciones. Los datos del cliente
+    se editan aparte. En créditos con calendario también cambia el número de
+    cuotas y la frecuencia; si algo de eso o el monto cambia, el calendario se
+    rehace y se reaplican los abonos. El monto no puede quedar por debajo de
+    lo ya abonado.
+
+    Solo se permite mientras el crédito no tenga abonos. En créditos de una
+    venta, un cambio de monto se refleja en la factura y en las ventas a
+    crédito de la caja.
+
+    Devuelve el Credito actualizado. Lanza ValueError si los datos no son
+    válidos.
+    """
+    if credito_bloqueado(credito):
+        raise ValueError(MENSAJE_BLOQUEADO)
+
+    monto = Decimal(str(monto))
+    if monto <= 0:
+        raise ValueError('El monto del crédito debe ser mayor a cero.')
+    abonado = credito.abonos.aggregate(
+        total=models.Sum('monto'))['total'] or Decimal('0')
+    if monto < abonado:
+        raise ValueError(
+            f'El monto no puede ser menor a lo ya abonado (${abonado}).')
+
+    credito.cliente = cliente
+    cambia_calendario = monto != credito.monto_total
+    if not credito.es_preexistente:
+        cuotas_total = max(1, int(cuotas_total or credito.cuotas_total))
+        if frecuencia not in ('mensual', 'quincenal'):
+            frecuencia = credito.frecuencia
+        cambia_calendario = (cambia_calendario
+                             or cuotas_total != credito.cuotas_total
+                             or frecuencia != credito.frecuencia)
+        credito.cuotas_total = cuotas_total
+        credito.frecuencia = frecuencia
+
+    monto_anterior = credito.monto_total
+    credito.monto_total = monto
+    credito.observaciones = (observaciones or '').strip()
+    credito.save(update_fields=[
+        'cliente', 'monto_total', 'observaciones', 'cuotas_total', 'frecuencia'])
+
+    _actualizar_factura_credito(credito, monto_anterior)
+    if cambia_calendario and not credito.es_preexistente:
+        _regenerar_cuotas(credito)
+    recalcular_cuotas(credito)
+    _recalcular_saldo(credito)
+    return credito
+
+
+def _anular_factura(factura, usuario=None):
+    """Elimina una factura con sus pagos y su pedido.
+
+    Devuelve al inventario lo que se descontó al venderla y recalcula el
+    cierre de caja si la factura ya estaba consolidada.
+    """
+    from apps.inventario.services import devolver_pedido
+    from apps.ventas.services import recalcular_cierre_de_factura
+
+    pedido = factura.pedido
+    devolver_pedido(pedido, f'Anulación factura #{factura.numero}', usuario)
+    factura.delete()  # los Pago se borran en cascada
+    pedido.delete()
+    # La instancia conserva created_at para ubicar el cierre afectado.
+    recalcular_cierre_de_factura(factura)
+
+
+@transaction.atomic
+def eliminar_credito(credito, usuario=None):
+    """Elimina un crédito con sus cuotas y abonos, y anula sus facturas.
+
+    - Crédito de una venta: se anula también la factura de la venta (sale de
+      caja y el inventario vuelve).
+    - Crédito anotado: no tiene factura propia; se borra con sus datos.
+
+    Un crédito con abonos no se puede eliminar (ValueError). Por eso, en la
+    práctica, no hay facturas de abonos que anular; la lógica se conserva por
+    si se llama sobre datos antiguos.
+    Devuelve la lista de números de factura anulados.
+    """
+    if credito_bloqueado(credito):
+        raise ValueError(MENSAJE_BLOQUEADO)
+
+    facturas = []
+    if credito.factura_id:
+        facturas.append(credito.factura)
+    facturas += [a.factura for a in credito.abonos.select_related('factura')
+                 if a.factura_id]
+
+    # Primero el crédito: su relación con la factura es PROTECT.
+    credito.delete()
+    for factura in facturas:
+        _anular_factura(factura, usuario)
+    return [f.numero for f in facturas]
 
 
 # ─── Recordatorios de cuota ──────────────────────────────────────────────────

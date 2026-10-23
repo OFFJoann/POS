@@ -85,7 +85,10 @@ def obtener_datos_dashboard():
     consumos_hoy = ConsumoInterno.objects.filter(created_at__date=hoy)
     consumos_items = consumos_hoy.select_related('producto', 'empleado').order_by('-id')[:20]
 
+    from apps.creditos.services import resumen_creditos
+
     return {
+        'creditos': resumen_creditos(),
         'ventas_dia': ventas_dia['total_ventas'] or 0,
         'ventas_mes': ventas_mes,
         'ventas_anio': ventas_anio,

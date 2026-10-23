@@ -336,9 +336,7 @@
                             <i class="bi bi-exclamation-circle"></i>
                             Se registrará la venta como crédito. El cliente irá abonando.
                         </div>
-                        <label class="form-label">Nombre del cliente *</label>
-                        <input type="text" name="cliente_nombre" class="form-control form-control-lg"
-                               placeholder="Nombre completo" maxlength="150">
+                        {% include 'creditos/_selector_cliente.html' with tam='lg' %}
                         <label class="form-label mt-2">Número de cuotas *</label>
                         <input type="number" name="cliente_cuotas" class="form-control form-control-lg"
                                inputmode="numeric" step="1" min="1" max="60" value="1">
@@ -347,9 +345,6 @@
                             <option value="mensual">Mensual (último día del mes)</option>
                             <option value="quincenal">Quincenal (día 15 y último día)</option>
                         </select>
-                        <label class="form-label mt-2">Correo del cliente (opcional)</label>
-                        <input type="email" name="cliente_correo" class="form-control form-control-lg"
-                               placeholder="cliente@correo.com">
                         <p class="small text-muted mt-2 mb-0">
                             Sin interés. Total dividido en cuotas iguales, con vencimiento en fechas fijas de calendario.
                         </p>
@@ -729,8 +724,9 @@ $(document).ready(function() {
         var btn = form.find('button[type="submit"]');
         var urlRedir = '/mesas/pedido/{{ pedido.id }}/';
         var metodoSel = form.find('select[name="metodo_pago"]').val();
-        if (metodoSel === 'credito' && !form.find('input[name="cliente_nombre"]').val().trim()) {
-            Swal.fire('Falta el cliente', 'Ingresa el nombre del cliente para el crédito.', 'warning');
+        if (metodoSel === 'credito' && !form.find('select[name="cliente_id"]').val()
+                && !form.find('input[name="cliente_nombre"]').val().trim()) {
+            Swal.fire('Falta el cliente', 'Selecciona un cliente o escribe el nombre del nuevo.', 'warning');
             return;
         }
         btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Procesando...');

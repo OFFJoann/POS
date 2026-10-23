@@ -8,22 +8,32 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.usuarios.decorators import permiso_required
 
-from .forms import CreditoPreexistenteForm
+from .forms import (
+    ClienteForm, CreditoPreexistenteForm, EditarCreditoForm, normalizar_monto,
+)
 from .models import Abono, Cliente, Credito
 from .services import (
+    MENSAJE_BLOQUEADO,
     abono_editable,
     caja_abierta,
+    credito_bloqueado,
     crear_credito_preexistente,
     editar_abono,
+    editar_credito,
+    eliminar_credito,
     enviar_recordatorio_cuota,
     enviar_recordatorio_credito,
+    guardar_cliente,
     registrar_abono,
+    resolver_cliente,
+    resumen_creditos,
 )
 
 
@@ -56,23 +66,35 @@ def lista_creditos(request):
     elif filtro == 'pagados':
         creditos = creditos.filter(estado='pagado')
 
-    # Resumen para las tarjetas superiores.
-    todos = Credito.objects.all()
-    resumen = {
-        'activos': todos.filter(estado__in=['activo', 'vencido']).count(),
-        'vencidos': todos.filter(estado='vencido').count(),
-        'pagados': todos.filter(estado='pagado').count(),
-        'saldo_total': todos.filter(estado__in=['activo', 'vencido'])
-            .aggregate(t=Sum('saldo_pendiente'))['t'] or Decimal('0'),
-        'saldo_vencido': sum((c.saldo_vencido for c in todos.filter(estado='vencido')), Decimal('0')),
-    }
-
     return render(request, 'creditos/lista_creditos.html', {
         'creditos': creditos,
         'filtro': filtro,
         'q': q,
-        'resumen': resumen,
+        'resumen': resumen_creditos(),
     })
+
+
+def _cliente_de_post(request):
+    """Cliente elegido o nuevo según los campos del selector de cliente."""
+    return resolver_cliente(
+        cliente_id=request.POST.get('cliente_id') or None,
+        nombre=request.POST.get('cliente_nombre', ''),
+        correo=request.POST.get('cliente_correo', ''),
+    )
+
+
+def selector_cliente_contexto(request=None, cliente=None):
+    """Datos para `creditos/_selector_cliente.html`.
+
+    Tras un POST con error conserva lo que el usuario había elegido/escrito.
+    """
+    datos = request.POST if request is not None and request.method == 'POST' else {}
+    return {
+        'clientes': Cliente.objects.order_by('nombre'),
+        'cliente_sel': datos.get('cliente_id', cliente.pk if cliente else ''),
+        'nuevo_nombre': datos.get('cliente_nombre', ''),
+        'nuevo_correo': datos.get('cliente_correo', ''),
+    }
 
 
 @login_required
@@ -84,13 +106,14 @@ def vista_crear_credito_preexistente(request):
         if form.is_valid():
             datos = form.cleaned_data
             try:
-                credito = crear_credito_preexistente(
-                    nombre_cliente=datos['nombre'],
-                    monto=datos['monto'],
-                    correo=datos.get('correo', ''),
-                    observaciones=datos.get('observaciones', ''),
-                    usuario=request.user,
-                )
+                with transaction.atomic():
+                    credito = crear_credito_preexistente(
+                        nombre_cliente='',
+                        monto=datos['monto'],
+                        observaciones=datos.get('observaciones', ''),
+                        usuario=request.user,
+                        cliente=_cliente_de_post(request),
+                    )
             except ValueError as exc:
                 messages.error(request, str(exc))
             else:
@@ -104,7 +127,84 @@ def vista_crear_credito_preexistente(request):
 
     return render(request, 'creditos/crear_credito_preexistente.html', {
         'form': form,
+        'selector': selector_cliente_contexto(request),
     })
+
+
+@login_required
+@permiso_required('credito')
+def vista_editar_credito(request, credito_id):
+    """Edita un crédito: cliente, monto, observaciones y calendario."""
+    credito = get_object_or_404(
+        Credito.objects.select_related('cliente', 'factura'), pk=credito_id)
+
+    if credito_bloqueado(credito):
+        messages.error(request, MENSAJE_BLOQUEADO)
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    if request.method == 'POST':
+        form = EditarCreditoForm(request.POST, credito=credito)
+        if form.is_valid():
+            datos = form.cleaned_data
+            try:
+                with transaction.atomic():
+                    editar_credito(
+                        credito,
+                        cliente=_cliente_de_post(request),
+                        monto=datos['monto'],
+                        observaciones=datos.get('observaciones', ''),
+                        cuotas_total=datos.get('cuotas_total'),
+                        frecuencia=datos.get('frecuencia'),
+                    )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, 'Crédito actualizado correctamente.')
+                return redirect('detalle_credito', credito_id=credito.id)
+    else:
+        form = EditarCreditoForm(credito=credito, initial={
+            'monto': credito.monto_total,
+            'cuotas_total': credito.cuotas_total,
+            'frecuencia': credito.frecuencia,
+            'observaciones': credito.observaciones,
+        })
+
+    return render(request, 'creditos/editar_credito.html', {
+        'credito': credito,
+        'form': form,
+        'selector': selector_cliente_contexto(request, credito.cliente),
+    })
+
+
+@login_required
+@permiso_required('credito')
+def vista_eliminar_credito(request, credito_id):
+    """Elimina un crédito y anula sus facturas (solo POST, administradores)."""
+    credito = get_object_or_404(
+        Credito.objects.select_related('cliente'), pk=credito_id)
+
+    if request.method != 'POST':
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    if not _es_admin(request.user):
+        messages.error(request, 'Solo un administrador puede eliminar créditos.')
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    cliente = credito.cliente.nombre
+    try:
+        anuladas = eliminar_credito(credito, usuario=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('detalle_credito', credito_id=credito_id)
+    except Exception as exc:  # p. ej. ProtectedError de otra relación
+        messages.error(request, f'No se pudo eliminar el crédito: {exc}')
+        return redirect('detalle_credito', credito_id=credito_id)
+
+    msg = f'Crédito de {cliente} eliminado.'
+    if anuladas:
+        msg += ' Facturas anuladas: ' + ', '.join(f'#{n}' for n in anuladas) + '.'
+    messages.success(request, msg)
+    return redirect('lista_creditos')
 
 
 @login_required
@@ -116,7 +216,7 @@ def detalle_credito(request, credito_id):
         pk=credito_id,
     )
     cuotas = credito.cuotas.order_by('numero')
-    abonos = list(credito.abonos.select_related('usuario', 'cuota'))
+    abonos = list(credito.abonos.select_related('usuario', 'cuota', 'factura'))
     caja = caja_abierta()
     es_admin = _es_admin(request.user)
     for abono in abonos:
@@ -129,6 +229,9 @@ def detalle_credito(request, credito_id):
         and credito.saldo_pendiente > 0
         and (proxima_cuota is not None or credito.es_preexistente)
     )
+    # Facturas que se anularían si se elimina el crédito.
+    facturas_a_anular = ([credito.factura] if credito.factura_id else []) + [
+        a.factura for a in abonos if a.factura_id]
 
     return render(request, 'creditos/detalle_credito.html', {
         'credito': credito,
@@ -140,6 +243,8 @@ def detalle_credito(request, credito_id):
         'caja_activa': caja,
         'caja_abierta': caja is not None,
         'es_admin': es_admin,
+        'facturas_a_anular': facturas_a_anular,
+        'bloqueado': bool(abonos),
     })
 
 
@@ -157,7 +262,7 @@ def vista_registrar_abono(request, credito_id):
         return redirect('detalle_credito', credito_id=credito_id)
 
     try:
-        monto = Decimal(request.POST.get('monto', 0))
+        monto = Decimal(normalizar_monto(request.POST.get('monto')) or 0)
     except (InvalidOperation, ValueError):
         monto = Decimal('0')
     metodo = request.POST.get('metodo', 'efectivo')
@@ -249,7 +354,7 @@ def vista_editar_abono(request, credito_id, abono_id):
         return redirect('detalle_credito', credito_id=credito_id)
 
     try:
-        nuevo_monto = Decimal(request.POST.get('monto', 0))
+        nuevo_monto = Decimal(normalizar_monto(request.POST.get('monto')) or 0)
     except (InvalidOperation, ValueError):
         nuevo_monto = Decimal('0')
 
@@ -271,3 +376,54 @@ def vista_editar_abono(request, credito_id, abono_id):
         request,
         f'Abono actualizado a ${abono.monto} correctamente.')
     return redirect('detalle_credito', credito_id=credito_id)
+
+
+# ─── Clientes de crédito ─────────────────────────────────────────────────────
+
+@login_required
+@permiso_required('credito')
+def lista_clientes(request):
+    """Clientes de crédito con su número de créditos y saldo por cobrar."""
+    q = (request.GET.get('q') or '').strip()
+    clientes = Cliente.objects.annotate(
+        num_creditos=Count('creditos'),
+        saldo=Sum('creditos__saldo_pendiente',
+                  filter=Q(creditos__estado__in=['activo', 'vencido'])),
+    ).order_by('nombre')
+    if q:
+        clientes = clientes.filter(Q(nombre__icontains=q) | Q(correo__icontains=q))
+    return render(request, 'creditos/lista_clientes.html', {
+        'clientes': clientes,
+        'q': q,
+    })
+
+
+@login_required
+@permiso_required('credito')
+def vista_cliente_form(request, cliente_id=None):
+    """Crea un cliente de crédito o edita el indicado (nombre y correo)."""
+    cliente = get_object_or_404(Cliente, pk=cliente_id) if cliente_id else None
+
+    if request.method == 'POST':
+        form = ClienteForm(request.POST)
+        if form.is_valid():
+            try:
+                cliente = guardar_cliente(
+                    form.cleaned_data['nombre'],
+                    form.cleaned_data.get('correo', ''),
+                    cliente=cliente,
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, f'Cliente {cliente.nombre} guardado.')
+                return redirect('lista_clientes')
+    elif cliente is not None:
+        form = ClienteForm(initial={'nombre': cliente.nombre, 'correo': cliente.correo})
+    else:
+        form = ClienteForm()
+
+    return render(request, 'creditos/cliente_form.html', {
+        'form': form,
+        'cliente': cliente,
+    })

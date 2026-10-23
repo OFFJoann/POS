@@ -67,6 +67,19 @@
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between">
+                        <span>
+                            <i class="bi bi-hourglass-split"></i> Saldo por cobrar (créditos)
+                            <small class="text-muted d-block">{{ creditos.activos }} crédito(s) abierto(s)</small>
+                        </span>
+                        <span class="text-end">
+                            <span class="fw-bold text-warning">${{ creditos.saldo_total|mil }}</span>
+                            {% if creditos.saldo_vencido %}
+                            <small class="text-danger d-block">Vencido: ${{ creditos.saldo_vencido|mil }}</small>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
                         <span>Descuentos</span>
                         <span class="fw-bold text-danger">${{ descuentos_dia|mil }}</span>
                     </div>

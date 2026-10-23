@@ -81,14 +81,8 @@ def descontar_inventario(producto, cantidad, pedido_id=None):
     )
 
 
-def descontar_pedido(pedido):
-    """
-    Descuenta el inventario de un pedido al facturar.
-
-    Si un detalle es un combo (``es_combo=True``), descuenta del inventario
-    real cada uno de sus productos componentes multiplicado por la cantidad
-    vendida del combo. Agrupa por producto para evitar movimientos duplicados.
-    """
+def _cantidades_pedido(pedido):
+    """Cantidad por producto real de un pedido (los combos se expanden)."""
     movimientos = defaultdict(int)
     detalles = (
         pedido.detalles
@@ -104,6 +98,34 @@ def descontar_pedido(pedido):
                     movimientos[comp.producto] += comp.cantidad * detalle.cantidad
         else:
             movimientos[producto] += detalle.cantidad
+    return movimientos
 
-    for producto, cantidad in movimientos.items():
+
+def descontar_pedido(pedido):
+    """
+    Descuenta el inventario de un pedido al facturar.
+
+    Si un detalle es un combo (``es_combo=True``), descuenta del inventario
+    real cada uno de sus productos componentes multiplicado por la cantidad
+    vendida del combo. Agrupa por producto para evitar movimientos duplicados.
+    """
+    for producto, cantidad in _cantidades_pedido(pedido).items():
         descontar_inventario(producto, cantidad, pedido.id)
+
+
+def devolver_pedido(pedido, motivo, usuario=None):
+    """
+    Reingresa al inventario lo que se descontó al facturar un pedido.
+
+    Se usa al anular una venta: registra una entrada por cada producto
+    (los combos devuelven sus componentes).
+    """
+    for producto, cantidad in _cantidades_pedido(pedido).items():
+        registrar_movimiento(
+            producto=producto,
+            tipo='entrada',
+            cantidad=cantidad,
+            motivo=motivo,
+            descripcion='Devolución automática por venta anulada',
+            usuario=usuario,
+        )

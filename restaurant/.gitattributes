@@ -1,0 +1,5 @@
+# Scripts que corren dentro de contenedores Linux: siempre LF
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker/*.conf text eol=lf
+router/*.conf text eol=lf

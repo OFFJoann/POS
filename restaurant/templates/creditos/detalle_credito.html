@@ -16,12 +16,12 @@
 
 {% block content %}
 <div class="container py-2 py-sm-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h5 class="mb-0">
             <i class="bi bi-hourglass-split"></i> Crédito
             <small class="text-muted">— {{ credito.cliente.nombre }}</small>
         </h5>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             {% if puede_enviar %}
             <form method="post" action="{% url 'enviar_recordatorio' credito.id %}" class="d-inline">
                 {% csrf_token %}
@@ -30,11 +30,81 @@
                 </button>
             </form>
             {% endif %}
+            {% if bloqueado %}
+            <span class="d-inline-block" tabindex="0"
+                  title="Tiene abonos: ya no se puede editar ni eliminar">
+                <button type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                    <i class="bi bi-lock"></i> Editar / Eliminar
+                </button>
+            </span>
+            {% else %}
+            <a href="{% url 'editar_credito' credito.id %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% endif %}
+            {% if es_admin and not bloqueado %}
+            <button type="button" class="btn btn-outline-danger btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#eliminarCredito">
+                <i class="bi bi-trash"></i> Eliminar
+            </button>
+            {% endif %}
             <a href="{% url 'lista_creditos' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Volver
             </a>
         </div>
     </div>
+
+    {% if bloqueado %}
+    <div class="alert alert-secondary py-2 mb-3 small">
+        <i class="bi bi-lock"></i>
+        Este crédito ya tiene abonos, por eso no se puede editar ni eliminar.
+    </div>
+    {% endif %}
+
+    {% if es_admin and not bloqueado %}
+    <div class="modal fade" id="eliminarCredito" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="{% url 'eliminar_credito' credito.id %}">
+                    {% csrf_token %}
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> Eliminar crédito
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body small">
+                        <p class="mb-2">
+                            Se eliminará el crédito de <strong>{{ credito.cliente.nombre }}</strong>
+                            por ${{ credito.monto_total|mil }}, con sus cuotas y
+                            {{ abonos|length }} abono(s). <strong>No se puede deshacer.</strong>
+                        </p>
+                        {% if facturas_a_anular %}
+                        <div class="alert alert-danger py-2 mb-0">
+                            También se <strong>anularán</strong> estas facturas
+                            (salen de caja y se recalcula el cierre si ya estaba cerrado):
+                            <ul class="mb-0 mt-1">
+                                {% for f in facturas_a_anular %}
+                                <li>#{{ f.numero }} — ${{ f.total|mil }} · {{ f.created_at|date:'d/m/Y' }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% if credito.factura %}
+                            <span class="d-block mt-1">Los productos de la venta vuelven al inventario.</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="bi bi-trash"></i> Sí, eliminar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Resumen del crédito -->
     <div class="row g-2 mb-3">
@@ -61,8 +131,9 @@
         <div class="col-6 col-md-3 resumen-card">
             <div class="p-3 bg-light rounded text-center h-100">
                 {% if credito.es_preexistente %}
-                <small class="text-muted d-block">Tipo</small>
-                <h5 class="mb-0"><span class="badge bg-info text-dark">Crédito anotado</span></h5>
+                <small class="text-muted d-block">Cuotas</small>
+                <h5 class="mb-0">—</h5>
+                <span class="badge bg-info text-dark">Anotado</span>
                 {% else %}
                 <small class="text-muted d-block">Cuotas ({{ credito.get_frecuencia_display|lower }})</small>
                 <h5 class="mb-0">{{ credito.cuotas_pagadas }}/{{ credito.cuotas_total }}</h5>
@@ -116,9 +187,53 @@
     </div>
 
     <div class="row">
-        <!-- Calendario de cuotas -->
-        {% if not credito.es_preexistente %}
+        <!-- Columna izquierda: calendario (venta) o detalle (anotado) -->
         <div class="col-lg-7 mb-3">
+            {% if credito.es_preexistente %}
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0"><i class="bi bi-journal-text"></i> Detalle del crédito</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 cuota-table">
+                            <tbody>
+                                <tr>
+                                    <th class="ps-3 fw-normal text-muted">Tipo</th>
+                                    <td class="text-end pe-3"><span class="badge bg-info text-dark">Crédito anotado (sin cuotas)</span></td>
+                                </tr>
+                                <tr>
+                                    <th class="ps-3 fw-normal text-muted">Registrado</th>
+                                    <td class="text-end pe-3">{{ credito.creado_en|date:'d/m/Y' }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="ps-3 fw-normal text-muted">Monto original</th>
+                                    <td class="text-end pe-3 fw-bold">${{ credito.monto_total|mil }}</td>
+                                </tr>
+                                <tr class="table-success">
+                                    <th class="ps-3 fw-normal">Abonado ({{ abonos|length }} abono{{ abonos|length|pluralize }})</th>
+                                    <td class="text-end pe-3">${{ credito.monto_pagado|mil }}</td>
+                                </tr>
+                                <tr class="{% if credito.saldo_pendiente > 0 %}table-warning{% else %}table-success{% endif %}">
+                                    <th class="ps-3 fw-normal">Saldo pendiente</th>
+                                    <td class="text-end pe-3 fw-bold">${{ credito.saldo_pendiente|mil }}</td>
+                                </tr>
+                                {% if credito.observaciones %}
+                                <tr>
+                                    <th class="ps-3 fw-normal text-muted">Observaciones</th>
+                                    <td class="text-end pe-3">{{ credito.observaciones }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="small text-muted px-3 py-2 mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Deuda registrada antes del sistema: sus abonos sí cuentan como ventas del día en caja.
+                    </p>
+                </div>
+            </div>
+            {% else %}
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white py-2">
                     <h6 class="mb-0"><i class="bi bi-calendar3"></i> Calendario de cuotas</h6>
@@ -168,11 +283,11 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
-        {% endif %}
 
         <!-- Abonar + historial -->
-        <div class="{% if credito.es_preexistente %}col-lg-7{% else %}col-lg-5{% endif %} mb-3">
+        <div class="col-lg-5 mb-3">
             <!-- Formulario de abono -->
             {% if credito.saldo_pendiente > 0 %}
             <div class="card border-0 shadow-sm mb-3">
@@ -203,10 +318,13 @@
                         {% csrf_token %}
                         <div class="mb-2">
                             <label class="form-label small mb-1">Monto a abonar *</label>
-                            <input type="number" name="monto" class="form-control form-control-lg"
-                                   inputmode="decimal" step="0.01" min="0.01"
-                                   max="{{ credito.saldo_pendiente|floatformat:2 }}"
-                                   value="{% if credito.proxima_cuota %}{{ credito.proxima_cuota.monto_faltante|floatformat:2 }}{% else %}{{ credito.saldo_pendiente|floatformat:2 }}{% endif %}" required>
+                            <input type="text" name="monto" class="form-control form-control-lg"
+                                   inputmode="decimal" data-miles autocomplete="off"
+                                   placeholder="0" value="" required>
+                            <small class="text-muted">
+                                Saldo pendiente: ${{ credito.saldo_pendiente|mil }}
+                                {% if credito.proxima_cuota %}· Cuota {{ credito.proxima_cuota.numero }}: falta ${{ credito.proxima_cuota.monto_faltante|mil }}{% endif %}
+                            </small>
                         </div>
                         <div class="mb-2">
                             <label class="form-label small mb-1">Método</label>
@@ -302,9 +420,9 @@
                             <div class="modal-body">
                                 <div class="mb-2">
                                     <label class="form-label small mb-1">Nuevo monto *</label>
-                                    <input type="number" name="monto" class="form-control form-control-lg"
-                                           inputmode="decimal" step="0.01" min="0.01"
-                                           value="{{ abono.monto|floatformat:2 }}" required>
+                                    <input type="text" name="monto" class="form-control form-control-lg"
+                                           inputmode="decimal" data-miles autocomplete="off"
+                                           value="{{ abono.monto|floatformat:'2u' }}" required>
                                     <small class="text-muted">
                                         Máximo disponible: ${{ abono.monto_maximo|mil }}
                                     </small>

@@ -1,0 +1,96 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Editar crédito de {{ credito.cliente.nombre }} - El Choli{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-pencil-square"></i> Editar crédito
+                    <small class="text-muted">— {{ credito.cliente.nombre }}</small>
+                </h5>
+                <a href="{% url 'detalle_credito' credito.id %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    {% if credito.factura %}
+                    <div class="alert alert-warning py-2 mb-3 small">
+                        <i class="bi bi-receipt"></i>
+                        Este crédito nació de la factura
+                        <strong>#{{ credito.factura.numero }}</strong> por
+                        ${{ credito.factura.total|mil }}. Si cambias el monto,
+                        también se <strong>ajustan la factura y las ventas a
+                        crédito de la caja</strong> de ese día (y su cierre, si
+                        ya estaba cerrada).
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <h6 class="text-muted small text-uppercase mb-2">Cliente</h6>
+                        <div class="mb-1">
+                            {% include 'creditos/_selector_cliente.html' %}
+                        </div>
+                        <small class="text-muted d-block mb-3">
+                            Para corregir el nombre o correo de un cliente usa
+                            <a href="{% url 'editar_cliente' credito.cliente.pk %}">editar cliente</a>.
+                        </small>
+
+                        <h6 class="text-muted small text-uppercase mb-2 mt-4">Crédito</h6>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.monto.label }} *</label>
+                            {{ form.monto }}
+                            <small class="text-muted">
+                                Ya abonado: ${{ credito.monto_pagado|mil }}. El monto no puede ser menor.
+                            </small>
+                            {% if form.monto.errors %}
+                            <div class="text-danger small">{{ form.monto.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                        {% if form.cuotas_total %}
+                        <div class="row g-2 mb-1">
+                            <div class="col-6">
+                                <label class="form-label small mb-1">{{ form.cuotas_total.label }} *</label>
+                                {{ form.cuotas_total }}
+                                {% if form.cuotas_total.errors %}
+                                <div class="text-danger small">{{ form.cuotas_total.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small mb-1">{{ form.frecuencia.label }} *</label>
+                                {{ form.frecuencia }}
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mb-3">
+                            Si cambias el monto, las cuotas o la frecuencia, el
+                            calendario se rehace desde el {{ credito.creado_en|date:'d/m/Y' }}
+                            y los abonos se vuelven a aplicar.
+                        </small>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">{{ form.observaciones.label }}</label>
+                            {{ form.observaciones }}
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-lg"></i> Guardar cambios
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

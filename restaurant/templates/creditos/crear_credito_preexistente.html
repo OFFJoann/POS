@@ -41,11 +41,7 @@
                         {% endif %}
 
                         <div class="mb-3">
-                            <label class="form-label small mb-1">{{ form.nombre.label }} *</label>
-                            {{ form.nombre }}
-                            {% if form.nombre.errors %}
-                            <div class="text-danger small">{{ form.nombre.errors|striptags }}</div>
-                            {% endif %}
+                            {% include 'creditos/_selector_cliente.html' %}
                         </div>
 
                         <div class="mb-3">
@@ -53,14 +49,6 @@
                             {{ form.monto }}
                             {% if form.monto.errors %}
                             <div class="text-danger small">{{ form.monto.errors|striptags }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label small mb-1">{{ form.correo.label }}</label>
-                            {{ form.correo }}
-                            {% if form.correo.errors %}
-                            <div class="text-danger small">{{ form.correo.errors|striptags }}</div>
                             {% endif %}
                         </div>
 

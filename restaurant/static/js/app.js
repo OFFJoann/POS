@@ -26,6 +26,9 @@
         // Inicializar tooltips de Bootstrap
         initTooltips();
 
+        // Campos de dinero con puntos de miles (data-miles)
+        initCamposMiles();
+
     });
 
     // ─── DataTables ───────────────────────────────────────────────
@@ -161,5 +164,71 @@
             });
         }
     }
+
+    // ─── Campos de dinero con puntos de miles ─────────────────────
+    // Un <input type="text" data-miles> muestra el valor como 1.250.000
+    // (coma para centavos: 3.333,34) mientras se escribe. Al enviar el
+    // formulario el valor viaja limpio (1250000 / 3333.34) para Django.
+
+    // Texto escrito por el usuario -> "1.250.000" o "3.333,3".
+    function formatearMiles(texto) {
+        texto = String(texto).replace(/[^\d,]/g, '');
+        var coma = texto.indexOf(',');
+        var entero = coma === -1 ? texto : texto.slice(0, coma);
+        var decimales = coma === -1 ? null : texto.slice(coma + 1).replace(/,/g, '').slice(0, 2);
+        entero = entero.replace(/^0+(?=\d)/, '');
+        entero = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        if (decimales !== null) {
+            return (entero || '0') + ',' + decimales;
+        }
+        return entero;
+    }
+
+    // Valor que llega del servidor ("15000.00" o "15000,00") -> "15.000".
+    function desdeServidor(valor) {
+        valor = String(valor || '').trim();
+        if (!valor) return '';
+        if (valor.indexOf(',') !== -1) {
+            valor = valor.replace(/\./g, '').replace(',', '.');
+        }
+        var n = parseFloat(valor);
+        if (isNaN(n)) return '';
+        var partes = n.toFixed(2).split('.');
+        return formatearMiles(partes[0] + (partes[1] === '00' ? '' : ',' + partes[1]));
+    }
+
+    // "1.250.000,5" -> "1250000.5"
+    function limpiarMiles(texto) {
+        return String(texto).replace(/\./g, '').replace(',', '.');
+    }
+
+    function initCamposMiles(raiz) {
+        (raiz || document).querySelectorAll('input[data-miles]:not([data-miles-listo])').forEach(function (input) {
+            input.setAttribute('data-miles-listo', '1');
+            input.value = desdeServidor(input.value);
+
+            input.addEventListener('input', function () {
+                // Conserva el cursor contando los dígitos/coma a su izquierda.
+                var pos = input.selectionStart || 0;
+                var antes = input.value.slice(0, pos).replace(/[^\d,]/g, '').length;
+                input.value = formatearMiles(input.value);
+                var i = 0, cuenta = 0;
+                while (i < input.value.length && cuenta < antes) {
+                    if (/[\d,]/.test(input.value[i])) cuenta++;
+                    i++;
+                }
+                input.setSelectionRange(i, i);
+            });
+        });
+    }
+
+    // Al enviar, todos los campos con miles pasan a número limpio.
+    document.addEventListener('submit', function (e) {
+        e.target.querySelectorAll('input[data-miles]').forEach(function (input) {
+            input.value = limpiarMiles(input.value);
+        });
+    }, true);
+
+    window.initCamposMiles = initCamposMiles;
 
 })();

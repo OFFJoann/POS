@@ -1,0 +1,68 @@
+{% comment %}
+Selector de cliente de crédito: elegir uno existente o crear uno nuevo.
+Envía `cliente_id` (existente) o `cliente_nombre` + `cliente_correo` (nuevo).
+Contexto: `selector` (ver creditos.views.selector_cliente_contexto) y
+opcionalmente `tam` ('lg' para inputs grandes).
+{% endcomment %}
+<div class="selector-cliente">
+    <label class="form-label {% if tam != 'lg' %}small mb-1{% endif %}">Cliente *</label>
+    <input type="search" class="form-control form-control-sm mb-1 js-filtro-cliente"
+           placeholder="Buscar cliente por nombre o correo..." autocomplete="off">
+    <select name="cliente_id" class="form-select {% if tam == 'lg' %}form-select-lg{% endif %} js-cliente-select">
+        <option value="">➕ Cliente nuevo</option>
+        {% for c in selector.clientes %}
+        <option value="{{ c.pk }}" data-correo="{{ c.correo }}"
+                {% if c.pk|stringformat:'s' == selector.cliente_sel|stringformat:'s' %}selected{% endif %}>
+            {{ c.nombre }}{% if c.correo %} — {{ c.correo }}{% endif %}
+        </option>
+        {% endfor %}
+    </select>
+    <div class="js-cliente-nuevo border rounded p-2 mt-2 bg-light">
+        <small class="text-muted d-block mb-1"><i class="bi bi-person-plus"></i> Datos del cliente nuevo</small>
+        <input type="text" name="cliente_nombre" class="form-control {% if tam == 'lg' %}form-control-lg{% endif %} mb-2"
+               placeholder="Nombre completo *" maxlength="150" value="{{ selector.nuevo_nombre }}">
+        <input type="email" name="cliente_correo" class="form-control {% if tam == 'lg' %}form-control-lg{% endif %}"
+               placeholder="Correo (opcional)" value="{{ selector.nuevo_correo }}">
+    </div>
+</div>
+<script>
+(function () {
+    document.querySelectorAll('.selector-cliente:not([data-listo])').forEach(function (caja) {
+        caja.setAttribute('data-listo', '1');
+        var filtro = caja.querySelector('.js-filtro-cliente');
+        var select = caja.querySelector('.js-cliente-select');
+        var nuevo = caja.querySelector('.js-cliente-nuevo');
+        var nombre = nuevo.querySelector('input[name="cliente_nombre"]');
+        var opcionNuevo = select.options[0];
+        // Copia de las opciones para poder filtrar en cualquier navegador.
+        var todas = Array.prototype.slice.call(select.options, 1);
+
+        function actualizar() {
+            nuevo.classList.toggle('d-none', !!select.value);
+        }
+
+        filtro.addEventListener('input', function () {
+            var texto = filtro.value.trim().toLowerCase();
+            var actual = select.value;
+            while (select.options.length > 1) select.remove(1);
+            var visibles = todas.filter(function (op) {
+                return !texto || op.text.toLowerCase().indexOf(texto) !== -1;
+            });
+            visibles.forEach(function (op) { select.add(op); });
+            if (texto && visibles.length) {
+                select.value = visibles[0].value;
+            } else if (texto) {
+                // Sin coincidencias: se propone crear el cliente con lo escrito.
+                select.value = '';
+                if (!nombre.value) nombre.value = filtro.value.trim();
+            } else {
+                select.value = actual;
+                if (select.value !== actual) select.value = '';
+            }
+            actualizar();
+        });
+        select.addEventListener('change', actualizar);
+        actualizar();
+    });
+})();
+</script>
