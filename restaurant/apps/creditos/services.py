@@ -253,8 +253,12 @@ def _mesero_para_abono(usuario):
 
 
 @transaction.atomic
-def _facturar_abono_preexistente(credito, monto, metodo, usuario, observacion=''):
+def _facturar_abono(credito, monto, metodo, usuario, observacion=''):
     """Registra el abono como una factura+pago para que sume al cierre de caja.
+
+    La factura se marca como `es_abono=True` para que en caja y reportes
+    cuente bajo la métrica "abono" (separada de efectivo/transferencia), con
+    desglose por el método real (efectivo/transferencia).
 
     Devuelve la Factura creada (o None si no se pudo: sin vendedor). Se usa una
     factura "de un solo renglón" con el monto del abono; el pedido no lleva
@@ -291,6 +295,7 @@ def _facturar_abono_preexistente(credito, monto, metodo, usuario, observacion=''
         total=monto,
         valor_recibido=monto,
         cambio=Decimal('0'),
+        es_abono=True,
     )
     factura._skip_inventory_deduction = True
     factura.save()
@@ -389,13 +394,12 @@ def registrar_abono(credito, monto, metodo='efectivo', usuario=None,
         es_preexistente=credito.es_preexistente,
     )
 
-    # Crédito anotado: el dinero debe entrar a la caja del día.
-    if credito.es_preexistente:
-        factura = _facturar_abono_preexistente(
-            credito, monto, metodo, usuario, observacion=observacion)
-        if factura is not None:
-            abono.factura = factura
-            abono.save(update_fields=['factura'])
+    # Todo abono entra a la caja del día bajo la métrica "abono".
+    factura = _facturar_abono(
+        credito, monto, metodo, usuario, observacion=observacion)
+    if factura is not None:
+        abono.factura = factura
+        abono.save(update_fields=['factura'])
 
     recalcular_cuotas(credito)
     _recalcular_saldo(credito)
@@ -831,3 +835,48 @@ def enviar_recordatorio_credito(credito, tipo='manual'):
         return False, str(exc)
 
     return True, correo
+
+@transaction.atomic
+def registrar_abono_global(cliente, monto, metodo='efectivo', usuario=None,
+                           observacion=''):
+    """Reparte un abono entre los créditos activos del cliente.
+
+    Paga primero los créditos de menor saldo pendiente (y, en empate, los mas
+    antiguos) hasta agotar el monto. Devuelve la lista de Abonos creados.
+    Lanza ValueError si el monto es invalido o la caja está cerrada.
+    """
+    caja = caja_abierta()
+    if caja is None:
+        raise ValueError('No se puede abonar porque la caja está cerrada.')
+
+    monto = Decimal(monto)
+    if monto <= 0:
+        raise ValueError('El monto del abono debe ser mayor a cero.')
+
+    saldo_global = cliente.saldo_total
+    if monto > saldo_global:
+        raise ValueError('El abono supera el saldo pendiente del cliente.')
+
+    if metodo not in ('efectivo', 'transferencia'):
+        metodo = 'efectivo'
+
+    creditos = list(
+        cliente.creditos.filter(estado__in=['activo', 'vencido'])
+        .order_by('-creado_en')
+    )
+
+    restante = monto
+    abonos = []
+    for credito in creditos:
+        if restante <= 0:
+            break
+        aplicar = restante if restante < credito.saldo_pendiente else credito.saldo_pendiente
+        if aplicar <= 0:
+            continue
+        abono = registrar_abono(
+            credito, aplicar, metodo=metodo, usuario=usuario,
+            observacion=(observacion or 'Abono global').strip(),
+        )
+        abonos.append(abono)
+        restante -= aplicar
+    return abonos

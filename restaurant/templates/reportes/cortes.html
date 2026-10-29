@@ -1,0 +1,84 @@
+{% extends 'base/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Cortes - El Choli{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-scissors"></i> Cortes</h5>
+        <a href="{% url 'dashboard_reportes' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Reportes
+        </a>
+    </div>
+
+    <!-- Filtro de fechas -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-1">Desde</label>
+                    <input type="date" name="desde" class="form-control" value="{{ desde|date:'Y-m-d' }}">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-1">Hasta</label>
+                    <input type="date" name="hasta" class="form-control" value="{{ hasta|date:'Y-m-d' }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-search"></i> Consultar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Totales -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <h6>Abonos (total)</h6>
+                    <h3>${{ total_abonos|mil }}</h3>
+                    <small>Efectivo ${{ total_abonos_efectivo|mil }} · Transf. ${{ total_abonos_transferencia|mil }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm bg-success text-white">
+                <div class="card-body">
+                    <h6>Ventas efectivo</h6>
+                    <h3>${{ total_ventas_efectivo|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm bg-info text-white">
+                <div class="card-body">
+                    <h6>Ventas transferencia</h6>
+                    <h3>${{ total_ventas_transferencia|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm bg-danger text-white">
+                <div class="card-body">
+                    <h6>Egresos</h6>
+                    <h3>${{ total_egresos|mil }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between fw-bold">
+                <span>Ventas + Abonos - Egresos</span>
+                <span>${{ resultado|mil }}</span>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+{% endblock %}

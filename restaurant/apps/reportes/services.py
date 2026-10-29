@@ -32,17 +32,22 @@ def obtener_datos_dashboard():
 
     facturas_hoy = Factura.objects.filter(created_at__date=hoy)
     ventas_dia = facturas_hoy.aggregate(
-        total_ventas=Sum('total'),
-        total_efectivo=Sum('total', filter=Q(metodo_pago='efectivo')),
-        total_transferencia=Sum('total', filter=Q(metodo_pago='transferencia')),
+        total_ventas=Sum('total', filter=~Q(metodo_pago='credito')),
+        total_efectivo=Sum('total', filter=Q(metodo_pago='efectivo', es_abono=False)),
+        total_transferencia=Sum('total', filter=Q(metodo_pago='transferencia', es_abono=False)),
+        total_abono=Sum('total', filter=Q(es_abono=True)),
+        total_abono_efectivo=Sum('total', filter=Q(metodo_pago='efectivo', es_abono=True)),
+        total_abono_transferencia=Sum('total', filter=Q(metodo_pago='transferencia', es_abono=True)),
         descuentos=Sum('descuento'),
     )
 
     facturas_mes = Factura.objects.filter(created_at__gte=inicio_mes)
-    ventas_mes = facturas_mes.aggregate(total=Sum('total'))['total'] or 0
+    ventas_mes = (facturas_mes.filter(~Q(metodo_pago='credito'))
+                  .aggregate(total=Sum('total'))['total'] or 0)
 
     facturas_anio = Factura.objects.filter(created_at__gte=inicio_anio)
-    ventas_anio = facturas_anio.aggregate(total=Sum('total'))['total'] or 0
+    ventas_anio = (facturas_anio.filter(~Q(metodo_pago='credito'))
+                   .aggregate(total=Sum('total'))['total'] or 0)
 
     productos_hoy = DetallePedido.objects.filter(
         pedido__factura__created_at__date=hoy
@@ -94,6 +99,9 @@ def obtener_datos_dashboard():
         'ventas_anio': ventas_anio,
         'efectivo_dia': ventas_dia['total_efectivo'] or 0,
         'transferencia_dia': ventas_dia['total_transferencia'] or 0,
+        'abono_dia': ventas_dia['total_abono'] or 0,
+        'abono_efectivo_dia': ventas_dia['total_abono_efectivo'] or 0,
+        'abono_transferencia_dia': ventas_dia['total_abono_transferencia'] or 0,
         'descuentos_dia': ventas_dia['descuentos'] or 0,
         'total_egresos': total_egresos,
         'total_egresos_mes': total_egresos_mes,

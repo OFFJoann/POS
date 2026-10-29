@@ -724,16 +724,18 @@ def cobrar_pedido(request, pedido_id):
             from apps.inventario.services import descontar_pedido
             descontar_pedido(pedido)
 
-        # Registrar pago
-        Pago.objects.create(
-            factura=factura,
-            pedido=pedido,
-            metodo=metodo_pago,
-            monto=monto_a_cobrar,
-            valor_recibido=valor_recibido,
-            cambio=cambio,
-            usuario=request.user,
-        )
+        # Registrar pago (las ventas a crédito no generan pago: el dinero
+        # solo se registra cuando el cliente abona).
+        if metodo_pago != 'credito':
+            Pago.objects.create(
+                factura=factura,
+                pedido=pedido,
+                metodo=metodo_pago,
+                monto=monto_a_cobrar,
+                valor_recibido=valor_recibido,
+                cambio=cambio,
+                usuario=request.user,
+            )
 
         # Registrar la deuda del crédito con su calendario de cuotas.
         if metodo_pago == 'credito':

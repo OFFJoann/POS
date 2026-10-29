@@ -59,6 +59,10 @@ class Factura(models.Model):
         'Saldo pendiente', max_digits=12, decimal_places=2,
         default=0
     )
+    es_abono = models.BooleanField(
+        'Es abono de crédito', default=False, db_index=True,
+        help_text='True si la factura corresponde a un abono de un crédito.'
+    )
     correo_cliente = models.EmailField(
         'Correo del cliente', blank=True, default='',
         help_text='Correo al que se envía la factura'

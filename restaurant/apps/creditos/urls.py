@@ -10,6 +10,8 @@ urlpatterns = [
     path('clientes/nuevo/', views.vista_cliente_form, name='crear_cliente'),
     path('clientes/<int:cliente_id>/editar/', views.vista_cliente_form,
          name='editar_cliente'),
+    path('clientes/<int:cliente_id>/abonar-global/', views.vista_abonar_global,
+         name='abonar_global'),
     path('<int:credito_id>/', views.detalle_credito, name='detalle_credito'),
     path('<int:credito_id>/editar/', views.vista_editar_credito,
          name='editar_credito'),

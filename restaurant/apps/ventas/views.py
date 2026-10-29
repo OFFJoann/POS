@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
+from django.contrib.admin.views.decorators import staff_member_required
 from io import BytesIO
 from datetime import date
 from .models import Factura
@@ -175,6 +176,49 @@ def buscar_facturas(request):
 
 
 @login_required
+@login_required
+@staff_member_required
+def anular_factura_view(request, factura_id):
+    from .services import anular_factura_venta
+    from apps.creditos.services import eliminar_credito
+    factura = get_object_or_404(Factura, pk=factura_id)
+    if request.method != 'POST':
+        return redirect('ver_factura', factura_id=factura_id)
+    try:
+        if hasattr(factura, 'credito'):
+            eliminar_credito(factura.credito, usuario=request.user)
+        else:
+            anular_factura_venta(factura, usuario=request.user)
+    except Exception as exc:
+        messages.error(request, f'No se pudo anular: {exc}')
+        return redirect('ver_factura', factura_id=factura_id)
+    messages.success(request, 'Factura anulada y inventario restaurado.')
+    return redirect('lista_facturas')
+
+
+@login_required
+@staff_member_required
+def cambiar_fecha_factura_view(request, factura_id):
+    from .services import cambiar_fecha_factura
+    from datetime import datetime
+    factura = get_object_or_404(Factura, pk=factura_id)
+    if request.method != 'POST':
+        return redirect('ver_factura', factura_id=factura_id)
+    nueva = request.POST.get('nueva_fecha')
+    try:
+        fecha = datetime.strptime(nueva, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        messages.error(request, 'Fecha inválida.')
+        return redirect('ver_factura', factura_id=factura_id)
+    try:
+        cambiar_fecha_factura(factura, fecha, usuario=request.user)
+    except Exception as exc:
+        messages.error(request, f'No se pudo cambiar la fecha: {exc}')
+        return redirect('ver_factura', factura_id=factura_id)
+    messages.success(request, 'Fecha de la factura actualizada.')
+    return redirect('ver_factura', factura_id=factura_id)
+
+
 def mis_comisiones(request):
     """
     Muestra las comisiones del usuario actual en la caja activa.

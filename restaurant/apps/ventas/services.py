@@ -8,6 +8,7 @@ from io import BytesIO
 from django.http import HttpResponse
 from django.template.loader import get_template
 from django.db.models import Max
+from django.db import transaction
 from .models import Factura
 
 
@@ -420,6 +421,108 @@ def recalcular_cierre_de_factura(factura):
         'dinero_esperado', 'diferencia',
     ])
     return cierre
+
+
+@transaction.atomic
+def anular_factura_venta(factura, usuario=None):
+    """Anula una factura de venta normal: devuelve inventario y recalcula cierre."""
+    from apps.inventario.services import devolver_pedido
+    from apps.caja.models import CierreCaja
+    pedido = factura.pedido
+    devolver_pedido(pedido, f'Anulación factura #{factura.numero}', usuario)
+    old_created = factura.created_at
+    factura.delete()  # pagos en cascada
+    pedido.delete()
+    cierre = CierreCaja.objects.filter(
+        caja__fecha_apertura__lte=old_created,
+        fecha_cierre__gte=old_created,
+    ).first()
+    if cierre is not None:
+        caja = cierre.caja
+        cierre.total_ventas_efectivo = caja.total_ventas_efectivo
+        cierre.total_ventas_transferencia = caja.total_ventas_transferencia
+        cierre.total_ventas_credito = caja.total_ventas_credito
+        cierre.total_ventas = caja.total_ventas
+        cierre.total_abonos_efectivo = caja.total_abonos_efectivo
+        cierre.total_abonos_transferencia = caja.total_abonos_transferencia
+        cierre.total_egresos = caja.total_egresos
+        cierre.total_egresos_efectivo = caja.total_egresos_efectivo
+        cierre.total_egresos_transferencia = caja.total_egresos_transferencia
+        cierre.dinero_esperado = caja.dinero_esperado
+        cierre.diferencia = cierre.efectivo_conteo - caja.dinero_esperado
+        cierre.save(update_fields=[
+            'total_ventas_efectivo', 'total_ventas_transferencia',
+            'total_ventas_credito', 'total_ventas', 'total_abonos_efectivo',
+            'total_abonos_transferencia', 'total_egresos',
+            'total_egresos_efectivo', 'total_egresos_transferencia',
+            'dinero_esperado', 'diferencia',
+        ])
+    return True
+
+
+@transaction.atomic
+def cambiar_fecha_factura(factura, nueva_fecha, usuario=None):
+    """Cambia el día (fecha) de una factura y sus pagos, recalculando cierres."""
+    from datetime import datetime, time
+    from django.utils import timezone
+    from apps.caja.models import CierreCaja
+    old_created = factura.created_at
+    new_dt = old_created.replace(
+        year=nueva_fecha.year, month=nueva_fecha.month, day=nueva_fecha.day)
+    # Update created_at.
+    factura.created_at = new_dt
+    factura.save(update_fields=['created_at'])
+    for p in factura.pagos.all():
+        p.created_at = new_dt
+        p.save(update_fields=['created_at'])
+    # Recalc new cierre.
+    cierre_new = CierreCaja.objects.filter(
+        caja__fecha_apertura__lte=new_dt, fecha_cierre__gte=new_dt).first()
+    if cierre_new is not None:
+        caja = cierre_new.caja
+        cierre_new.total_ventas_efectivo = caja.total_ventas_efectivo
+        cierre_new.total_ventas_transferencia = caja.total_ventas_transferencia
+        cierre_new.total_ventas_credito = caja.total_ventas_credito
+        cierre_new.total_ventas = caja.total_ventas
+        cierre_new.total_abonos_efectivo = caja.total_abonos_efectivo
+        cierre_new.total_abonos_transferencia = caja.total_abonos_transferencia
+        cierre_new.total_egresos = caja.total_egresos
+        cierre_new.total_egresos_efectivo = caja.total_egresos_efectivo
+        cierre_new.total_egresos_transferencia = caja.total_egresos_transferencia
+        cierre_new.dinero_esperado = caja.dinero_esperado
+        cierre_new.diferencia = cierre_new.efectivo_conteo - caja.dinero_esperado
+        cierre_new.save(update_fields=[
+            'total_ventas_efectivo', 'total_ventas_transferencia',
+            'total_ventas_credito', 'total_ventas', 'total_abonos_efectivo',
+            'total_abonos_transferencia', 'total_egresos',
+            'total_egresos_efectivo', 'total_egresos_transferencia',
+            'dinero_esperado', 'diferencia',
+        ])
+    # Recalc old cierre.
+    if old_created.date() != new_dt.date():
+        cierre_old = CierreCaja.objects.filter(
+            caja__fecha_apertura__lte=old_created, fecha_cierre__gte=old_created).first()
+        if cierre_old is not None:
+            caja = cierre_old.caja
+            cierre_old.total_ventas_efectivo = caja.total_ventas_efectivo
+            cierre_old.total_ventas_transferencia = caja.total_ventas_transferencia
+            cierre_old.total_ventas_credito = caja.total_ventas_credito
+            cierre_old.total_ventas = caja.total_ventas
+            cierre_old.total_abonos_efectivo = caja.total_abonos_efectivo
+            cierre_old.total_abonos_transferencia = caja.total_abonos_transferencia
+            cierre_old.total_egresos = caja.total_egresos
+            cierre_old.total_egresos_efectivo = caja.total_egresos_efectivo
+            cierre_old.total_egresos_transferencia = caja.total_egresos_transferencia
+            cierre_old.dinero_esperado = caja.dinero_esperado
+            cierre_old.diferencia = cierre_old.efectivo_conteo - caja.dinero_esperado
+            cierre_old.save(update_fields=[
+                'total_ventas_efectivo', 'total_ventas_transferencia',
+                'total_ventas_credito', 'total_ventas', 'total_abonos_efectivo',
+                'total_abonos_transferencia', 'total_egresos',
+                'total_egresos_efectivo', 'total_egresos_transferencia',
+                'dinero_esperado', 'diferencia',
+            ])
+    return True
 
 
 def editar_factura(factura, nuevo_total, usuario=None):

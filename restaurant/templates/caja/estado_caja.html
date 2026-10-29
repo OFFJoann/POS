@@ -47,8 +47,24 @@
         <div class="col-6 col-md">
             <div class="card border border-warning shadow-sm">
                 <div class="card-body text-dark">
-                    <h6><i class="bi bi-hourglass-split"></i> Ventas crédito</h6>
+                    <h6><i class="bi bi-hourglass-split"></i> Ventas crédito (no suma)</h6>
                     <h3>${{ caja.total_ventas_credito|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <h6>Abonos (efectivo)</h6>
+                    <h3>${{ caja.total_abonos_efectivo|mil }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm bg-secondary text-white">
+                <div class="card-body">
+                    <h6>Abonos (transferencia)</h6>
+                    <h3>${{ caja.total_abonos_transferencia|mil }}</h3>
                 </div>
             </div>
         </div>

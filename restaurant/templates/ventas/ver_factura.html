@@ -162,5 +162,33 @@
             </div>
         </div>
     </div>
+
+    {% if user.is_staff %}
+    <div class="card border-0 shadow-sm mt-3 border-danger">
+        <div class="card-header bg-danger bg-opacity-10 py-2">
+            <h6 class="mb-0 text-danger"><i class="bi bi-shield-lock"></i> Administración</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'cambiar_fecha_factura' factura.id %}" class="row g-2 align-items-end mb-3">
+                {% csrf_token %}
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Cambiar día de la factura</label>
+                    <input type="date" name="nueva_fecha" class="form-control" value="{{ factura.created_at|date:'Y-m-d' }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-calendar"></i> Cambiar fecha
+                    </button>
+                </div>
+            </form>
+            <form method="post" action="{% url 'anular_factura' factura.id %}" onsubmit="return confirm('¿Anular esta factura y restaurar inventario?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">
+                    <i class="bi bi-trash"></i> Anular factura (restaura inventario)
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

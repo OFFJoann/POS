@@ -87,20 +87,6 @@
         </div>
     </div>
 
-    {% if ganancia_total_general %}
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm bg-success text-white">
-                <div class="card-body">
-                    <h6>Ganancia total estimada</h6>
-                    <h3>${{ ganancia_total_general|mil }}</h3>
-                    <small>Suma de (precio - costo) × vendidos</small>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm bg-danger text-white">
@@ -114,7 +100,18 @@
         <div class="col-md-6">
             <div class="card border-0 shadow-sm bg-primary text-white">
                 <div class="card-body">
-                    <h6>Ganancia potencial total</h6>
+                    <h6>Precio × stock actual (si se vende todo)</h6>
+                    <h3>${{ valor_stock|mil }}</h3>
+                    <small>Suma de (precio de venta × stock actual) de todos los productos</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-12">
+            <div class="card border-0 shadow-sm bg-success text-white">
+                <div class="card-body">
+                    <h6>Ganancia potencial (precio − costo) × stock</h6>
                     <h3>${{ ganancia_potencial|mil }}</h3>
                     <small>Suma de ((precio − costo) × stock actual) si se vende todo</small>
                 </div>

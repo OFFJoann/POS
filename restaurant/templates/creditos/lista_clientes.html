@@ -51,6 +51,11 @@
                             ${{ c.saldo|default:0|mil }}
                         </td>
                         <td class="pe-3 text-end">
+                            {% if c.saldo %}
+                            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#abonarGlobal{{ c.pk }}" title="Abonar al global">
+                                <i class="bi bi-cash-coin"></i> Abonar al global
+                            </button>
+                            {% endif %}
                             <a href="{% url 'editar_cliente' c.pk %}" class="btn btn-outline-secondary btn-sm" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -67,5 +72,56 @@
             </table>
         </div>
     </div>
+
+    {% for c in clientes %}
+    {% if c.saldo %}
+    <div class="modal fade" id="abonarGlobal{{ c.pk }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="{% url 'abonar_global' c.pk %}">
+                    {% csrf_token %}
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title">
+                            <i class="bi bi-cash-coin"></i> Abonar al global
+                            <small class="text-muted">— {{ c.nombre }}</small>
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-2">
+                            Saldo global por cobrar: <strong>${{ c.saldo|default:0|mil }}</strong>.
+                            El pago se reparte entre los créditos activos, pagando primero
+                            los más recientes.
+                        </p>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Monto a abonar *</label>
+                            <input type="number" name="monto" class="form-control form-control-lg"
+                                   inputmode="decimal" step="0.01" min="0.01"
+                                   max="{{ c.saldo|floatformat:2 }}" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Método</label>
+                            <select name="metodo" class="form-select">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">Nota (opcional)</label>
+                            <input type="text" name="observacion" class="form-control" maxlength="200">
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="bi bi-check-lg"></i> Registrar abono
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
 </div>
 {% endblock %}

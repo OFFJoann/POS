@@ -5,7 +5,12 @@
 
 {% block content %}
 <div class="container-fluid py-3">
-    <h3 class="mb-3"><i class="bi bi-graph-up"></i> Dashboard de reportes</h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0"><i class="bi bi-graph-up"></i> Dashboard de reportes</h3>
+        <a href="{% url 'reporte_cortes' %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-scissors"></i> Cortes
+        </a>
+    </div>
 
     <!-- Fila 1: Métricas principales -->
     <div class="row g-3 mb-4">
@@ -64,6 +69,14 @@
                     <div class="d-flex justify-content-between mb-2">
                         <span>Transferencia</span>
                         <span class="fw-bold text-info">${{ transferencia_dia|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Abono (efectivo)</span>
+                        <span class="fw-bold text-primary">${{ abono_efectivo_dia|mil }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Abono (transferencia)</span>
+                        <span class="fw-bold text-secondary">${{ abono_transferencia_dia|mil }}</span>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between">

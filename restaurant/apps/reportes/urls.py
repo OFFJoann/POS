@@ -7,6 +7,7 @@ from . import views
 urlpatterns = [
     path('', views.dashboard_reportes, name='dashboard_reportes'),
     path('ventas/', views.reporte_ventas, name='reporte_ventas'),
+    path('cortes/', views.reporte_cortes, name='reporte_cortes'),
     path('ventas/exportar/excel/', views.exportar_ventas_excel, name='exportar_ventas_excel'),
     path('ventas/exportar/pdf/', views.exportar_ventas_pdf, name='exportar_ventas_pdf'),
     path('productos/', views.reporte_productos, name='reporte_productos'),

@@ -159,6 +159,8 @@ def cerrar_caja(request):
             total_ventas_efectivo=caja.total_ventas_efectivo,
             total_ventas_transferencia=caja.total_ventas_transferencia,
             total_ventas_credito=caja.total_ventas_credito,
+            total_abonos_efectivo=caja.total_abonos_efectivo,
+            total_abonos_transferencia=caja.total_abonos_transferencia,
             total_ventas=caja.total_ventas,
             total_egresos=caja.total_egresos,
             total_egresos_efectivo=caja.total_egresos_efectivo,

@@ -32,6 +32,7 @@ from .services import (
     enviar_recordatorio_credito,
     guardar_cliente,
     registrar_abono,
+    registrar_abono_global,
     resolver_cliente,
     resumen_creditos,
 )
@@ -427,3 +428,44 @@ def vista_cliente_form(request, cliente_id=None):
         'form': form,
         'cliente': cliente,
     })
+
+
+@login_required
+@permiso_required('credito')
+def vista_abonar_global(request, cliente_id):
+    """Registra un abono que se reparte entre los créditos activos del cliente,
+    pagando primero los más recientes."""
+    from decimal import Decimal, InvalidOperation
+    from .forms import normalizar_monto
+    cliente = get_object_or_404(Cliente, pk=cliente_id)
+
+    if request.method != 'POST':
+        return redirect('lista_clientes')
+
+    try:
+        monto = Decimal(normalizar_monto(request.POST.get('monto')) or 0)
+    except (InvalidOperation, ValueError):
+        monto = Decimal('0')
+    metodo = request.POST.get('metodo', 'efectivo')
+    if metodo not in ('efectivo', 'transferencia'):
+        metodo = 'efectivo'
+    observacion = (request.POST.get('observacion') or '').strip()
+
+    if monto <= 0:
+        messages.error(request, 'Ingresa un monto mayor a cero.')
+        return redirect('lista_clientes')
+
+    try:
+        abonos = registrar_abono_global(
+            cliente, monto, metodo=metodo, usuario=request.user,
+            observacion=observacion,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('lista_clientes')
+
+    total = sum((a.monto for a in abonos), Decimal('0'))
+    messages.success(
+        request,
+        f'Abono global de ${total} registrado para {cliente.nombre}.')
+    return redirect('lista_clientes')

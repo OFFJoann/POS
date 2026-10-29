@@ -38,10 +38,23 @@ class AperturaCaja(models.Model):
 
     @property
     def total_ventas_efectivo(self):
-        """Suma de todas las ventas en efectivo durante esta caja."""
+        """Ventas en efectivo (excluye abonos de crédito)."""
         from apps.ventas.models import Pago
         total = Pago.objects.filter(
             metodo='efectivo',
+            factura__es_abono=False,
+            created_at__gte=self.fecha_apertura,
+            created_at__lte=self._fecha_fin,
+        ).aggregate(total=models.Sum('monto'))['total'] or 0
+        return total
+
+    @property
+    def total_abonos_efectivo(self):
+        """Abonos de crédito pagados en efectivo."""
+        from apps.ventas.models import Pago
+        total = Pago.objects.filter(
+            metodo='efectivo',
+            factura__es_abono=True,
             created_at__gte=self.fecha_apertura,
             created_at__lte=self._fecha_fin,
         ).aggregate(total=models.Sum('monto'))['total'] or 0
@@ -49,10 +62,23 @@ class AperturaCaja(models.Model):
 
     @property
     def total_ventas_transferencia(self):
-        """Suma de todas las ventas por transferencia."""
+        """Ventas por transferencia (excluye abonos de crédito)."""
         from apps.ventas.models import Pago
         total = Pago.objects.filter(
             metodo='transferencia',
+            factura__es_abono=False,
+            created_at__gte=self.fecha_apertura,
+            created_at__lte=self._fecha_fin,
+        ).aggregate(total=models.Sum('monto'))['total'] or 0
+        return total
+
+    @property
+    def total_abonos_transferencia(self):
+        """Abonos de crédito pagados por transferencia."""
+        from apps.ventas.models import Pago
+        total = Pago.objects.filter(
+            metodo='transferencia',
+            factura__es_abono=True,
             created_at__gte=self.fecha_apertura,
             created_at__lte=self._fecha_fin,
         ).aggregate(total=models.Sum('monto'))['total'] or 0
@@ -75,9 +101,9 @@ class AperturaCaja(models.Model):
 
     @property
     def total_ventas(self):
-        """Total de ventas del día (incluye crédito)."""
+        """Total de ventas del día (efectivo + transferencia + abonos)."""
         return (self.total_ventas_efectivo + self.total_ventas_transferencia
-                + self.total_ventas_credito)
+                + self.total_abonos_efectivo + self.total_abonos_transferencia)
 
     @property
     def total_egresos(self):
@@ -103,11 +129,12 @@ class AperturaCaja(models.Model):
 
     @property
     def total_ventas_efectivo_transferencia(self):
-        """Ventas que sí entraron en dinero (efectivo + transferencia).
+        """Ventas que sí entraron en dinero (efectivo + transferencia + abonos).
 
         Es la base del dinero esperado en el cajón; el crédito queda fuera.
         """
-        return self.total_ventas_efectivo + self.total_ventas_transferencia
+        return (self.total_ventas_efectivo + self.total_ventas_transferencia
+                + self.total_abonos_efectivo + self.total_abonos_transferencia)
 
     @property
     def dinero_esperado(self):
@@ -149,6 +176,12 @@ class CierreCaja(models.Model):
     )
     total_ventas_credito = models.DecimalField(
         'Ventas a crédito', max_digits=12, decimal_places=2, default=0
+    )
+    total_abonos_efectivo = models.DecimalField(
+        'Abonos en efectivo', max_digits=12, decimal_places=2, default=0
+    )
+    total_abonos_transferencia = models.DecimalField(
+        'Abonos por transferencia', max_digits=12, decimal_places=2, default=0
     )
     total_ventas = models.DecimalField(
         'Total ventas', max_digits=12, decimal_places=2, default=0

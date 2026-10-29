@@ -54,10 +54,13 @@ def reporte_ventas(request):
         facturas = facturas.filter(mesa__numero=mesa_numero)
 
     totales = facturas.aggregate(
-        total_ventas=Sum('total'),
+        total_ventas=Sum('total', filter=~Q(metodo_pago='credito')),
         descuentos=Sum('descuento'),
-        efectivo=Sum('total', filter=Q(metodo_pago='efectivo')),
-        transferencia=Sum('total', filter=Q(metodo_pago='transferencia')),
+        efectivo=Sum('total', filter=Q(metodo_pago='efectivo', es_abono=False)),
+        transferencia=Sum('total', filter=Q(metodo_pago='transferencia', es_abono=False)),
+        abono=Sum('total', filter=Q(es_abono=True)),
+        abono_efectivo=Sum('total', filter=Q(metodo_pago='efectivo', es_abono=True)),
+        abono_transferencia=Sum('total', filter=Q(metodo_pago='transferencia', es_abono=True)),
     )
 
     vendedores = Vendedor.objects.filter(activo=True)
@@ -158,6 +161,9 @@ def reporte_productos(request):
         total=Sum((F('precio_venta') - F('costo')) * F('stock_actual'))
     )['total'] or 0
 
+    valor_stock = Producto.objects.aggregate(
+        total=Sum(F('precio_venta') * F('stock_actual'))
+    )['total'] or 0
     return render(request, 'reportes/reporte_productos.html', {
         'mas_vendidos': mas_vendidos,
         'menos_vendidos': menos_vendidos,
@@ -166,6 +172,7 @@ def reporte_productos(request):
         'ganancia_total_general': ganancia_total_general,
         'total_invertido': total_invertido,
         'ganancia_potencial': ganancia_potencial,
+        'valor_stock': valor_stock,
     })
 
 
@@ -216,6 +223,78 @@ def datos_dashboard_api(request):
             datos[key] = list(value)
 
     return JsonResponse(datos)
+
+
+@login_required
+@permiso_required('reportes')
+def reporte_cortes(request):
+    """Reporte de cortes: totales por rango de fechas + arqueo de inventario."""
+    from datetime import datetime
+    from django.utils import timezone
+    from apps.ventas.models import Factura, Pago
+    from apps.caja.models import Egreso
+    from apps.productos.models import Producto
+
+    fecha_desde = request.GET.get('desde')
+    fecha_hasta = request.GET.get('hasta')
+
+    # Parse dates; default to today.
+    hoy = timezone.localdate()
+    if fecha_desde:
+        try:
+            d_desde = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+        except ValueError:
+            d_desde = hoy
+    else:
+        d_desde = hoy
+    if fecha_hasta:
+        try:
+            d_hasta = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+        except ValueError:
+            d_hasta = hoy
+    else:
+        d_hasta = hoy
+
+    inicio = timezone.make_aware(datetime(d_desde.year, d_desde.month, d_desde.day))
+    fin = timezone.make_aware(datetime(d_hasta.year, d_hasta.month, d_hasta.day, 23, 59, 59))
+
+    facturas = Factura.objects.filter(created_at__gte=inicio, created_at__lte=fin)
+    pagos = Pago.objects.filter(created_at__gte=inicio, created_at__lte=fin)
+
+    total_abonos = pagos.filter(factura__es_abono=True).aggregate(
+        t=Sum('monto'))['t'] or Decimal('0')
+    total_abonos_efectivo = pagos.filter(
+        factura__es_abono=True, metodo='efectivo').aggregate(t=Sum('monto'))['t'] or Decimal('0')
+    total_abonos_transferencia = pagos.filter(
+        factura__es_abono=True, metodo='transferencia').aggregate(t=Sum('monto'))['t'] or Decimal('0')
+
+    total_ventas_efectivo = pagos.filter(
+        metodo='efectivo', factura__es_abono=False).aggregate(t=Sum('monto'))['t'] or Decimal('0')
+    total_ventas_transferencia = pagos.filter(
+        metodo='transferencia', factura__es_abono=False).aggregate(t=Sum('monto'))['t'] or Decimal('0')
+
+    total_egresos = Egreso.objects.filter(
+        created_at__gte=inicio, created_at__lte=fin).aggregate(
+        t=Sum('valor'))['t'] or Decimal('0')
+
+    # Inventory summary for arqueo.
+    productos = Producto.objects.filter(estado='activo').order_by('nombre')
+
+    resultado = (total_ventas_efectivo + total_ventas_transferencia
+                 + total_abonos - total_egresos)
+
+    return render(request, 'reportes/cortes.html', {
+        'desde': d_desde,
+        'hasta': d_hasta,
+        'total_abonos': total_abonos,
+        'total_abonos_efectivo': total_abonos_efectivo,
+        'total_abonos_transferencia': total_abonos_transferencia,
+        'total_ventas_efectivo': total_ventas_efectivo,
+        'total_ventas_transferencia': total_ventas_transferencia,
+        'total_egresos': total_egresos,
+        'productos': productos,
+        'resultado': resultado,
+    })
 
 
 @login_required

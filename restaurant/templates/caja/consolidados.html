@@ -130,6 +130,19 @@
                 </div>
                 {% endif %}
 
+                <!-- Desglose de totales -->
+                <div class="p-2 p-sm-3 border-bottom">
+                    <h6 class="text-muted mb-2 small"><i class="bi bi-pie-chart"></i> Desglose</h6>
+                    <div class="row small">
+                        <div class="col-6 col-md-3">Efectivo: <strong>${{ c.total_ventas_efectivo|mil }}</strong></div>
+                        <div class="col-6 col-md-3">Transferencia: <strong>${{ c.total_ventas_transferencia|mil }}</strong></div>
+                        <div class="col-6 col-md-3">Crédito: <strong>${{ c.total_ventas_credito|mil }}</strong></div>
+                        <div class="col-6 col-md-3">Abonos: <strong>${{ c.total_abonos_efectivo|mil }} / {{ c.total_abonos_transferencia|mil }}</strong></div>
+                        <div class="col-6 col-md-3">Egresos: <strong class="text-danger">-${{ c.total_egresos|mil }}</strong></div>
+                        <div class="col-6 col-md-3">Comisiones: <strong class="text-success">${{ c.total_comisiones|mil }}</strong></div>
+                    </div>
+                </div>
+
                 <!-- Facturas por mesa -->
                 <div class="p-2 p-sm-3">
                     <h6 class="text-muted mb-2 mb-sm-3 small">
