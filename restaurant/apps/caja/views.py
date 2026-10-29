@@ -14,6 +14,39 @@ from apps.usuarios.decorators import admin_required, permiso_required
 from apps.mesas.models import Mesa
 
 
+@login_required
+@staff_member_required
+def crear_consolidado_view(request):
+    from datetime import datetime
+    from django.utils import timezone
+    from apps.caja.models import AperturaCaja, CierreCaja
+    if request.method == 'POST':
+        fecha_str = request.POST.get('fecha')
+        try:
+            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            messages.error(request, 'Fecha inválida.')
+            return redirect('consolidados')
+        inicio = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 8, 0))
+        fin = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 20, 0))
+        caja = AperturaCaja.objects.create(
+            usuario=request.user, fecha_apertura=inicio, activa=False,
+            fecha_cierre=fin,
+        )
+        CierreCaja.objects.create(
+            caja=caja, usuario=request.user,
+            total_ventas=Decimal('0'), total_ventas_efectivo=Decimal('0'),
+            total_ventas_transferencia=Decimal('0'), total_ventas_credito=Decimal('0'),
+            total_abonos_efectivo=Decimal('0'), total_abonos_transferencia=Decimal('0'),
+            total_egresos=Decimal('0'), total_egresos_efectivo=Decimal('0'),
+            total_egresos_transferencia=Decimal('0'), dinero_esperado=Decimal('0'),
+            diferencia=Decimal('0'),
+        )
+        messages.success(request, f'Consolidado creado para {fecha.strftime("%d/%m/%Y")}.')
+        return redirect('consolidados')
+    return redirect('consolidados')
+
+
 def _puede_ver_totales(user):
     """Indica si el usuario puede ver los totales/dinero esperado de caja."""
     if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
