@@ -15,35 +15,62 @@ from apps.mesas.models import Mesa
 
 
 @login_required
-@staff_member_required
+@admin_required
 def crear_consolidado_view(request):
-    from datetime import datetime
+    from datetime import datetime, time as dtime
     from django.utils import timezone
     from apps.caja.models import AperturaCaja, CierreCaja
-    if request.method == 'POST':
-        fecha_str = request.POST.get('fecha')
-        try:
-            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            messages.error(request, 'Fecha inválida.')
-            return redirect('consolidados')
-        inicio = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 8, 0))
-        fin = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 20, 0))
-        caja = AperturaCaja.objects.create(
-            usuario=request.user, fecha_apertura=inicio, activa=False,
-            fecha_cierre=fin,
-        )
-        CierreCaja.objects.create(
-            caja=caja, usuario=request.user,
-            total_ventas=Decimal('0'), total_ventas_efectivo=Decimal('0'),
-            total_ventas_transferencia=Decimal('0'), total_ventas_credito=Decimal('0'),
-            total_abonos_efectivo=Decimal('0'), total_abonos_transferencia=Decimal('0'),
-            total_egresos=Decimal('0'), total_egresos_efectivo=Decimal('0'),
-            total_egresos_transferencia=Decimal('0'), dinero_esperado=Decimal('0'),
-            diferencia=Decimal('0'),
-        )
-        messages.success(request, f'Consolidado creado para {fecha.strftime("%d/%m/%Y")}.')
+    if request.method != 'POST':
         return redirect('consolidados')
+
+    fecha_str = request.POST.get('fecha', '').strip()
+    if not fecha_str:
+        messages.error(request, 'Debes indicar una fecha.')
+        return redirect('consolidados')
+
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        messages.error(request, 'Fecha inválida. Usa el formato AAAA-MM-DD.')
+        return redirect('consolidados')
+
+    # Evitar duplicados: si ya existe un cierre para ese día, no crear otro.
+    inicio_dia = timezone.make_aware(datetime.combine(fecha, dtime.min))
+    fin_dia = timezone.make_aware(datetime.combine(fecha, dtime.max))
+    if CierreCaja.objects.filter(
+        fecha_cierre__gte=inicio_dia, fecha_cierre__lte=fin_dia,
+    ).exists():
+        messages.warning(request, f'Ya existe un consolidado para el {fecha.strftime("%d/%m/%Y")}.')
+        return redirect('consolidados')
+
+    inicio = timezone.make_aware(datetime.combine(fecha, dtime(8, 0)))
+    fin = timezone.make_aware(datetime.combine(fecha, dtime(20, 0)))
+
+    # Nota: fecha_apertura/fecha_cierre tienen auto_now_add, por lo que se
+    # ignoran los valores pasados al crear. Se asignan despues con update.
+    caja = AperturaCaja.objects.create(
+        usuario=request.user, activa=False,
+    )
+    caja.fecha_apertura = inicio
+    caja.fecha_cierre = fin
+    caja.save(update_fields=['fecha_apertura', 'fecha_cierre'])
+
+    cierre = CierreCaja.objects.create(
+        caja=caja, usuario=request.user,
+        monto_inicial=Decimal('0'),
+        total_ventas=Decimal('0'), total_ventas_efectivo=Decimal('0'),
+        total_ventas_transferencia=Decimal('0'), total_ventas_credito=Decimal('0'),
+        total_abonos_efectivo=Decimal('0'), total_abonos_transferencia=Decimal('0'),
+        total_egresos=Decimal('0'), total_egresos_efectivo=Decimal('0'),
+        total_egresos_transferencia=Decimal('0'),
+        total_comisiones=Decimal('0'), comisiones_detalle=[],
+        dinero_esperado=Decimal('0'), efectivo_conteo=Decimal('0'),
+        diferencia=Decimal('0'),
+        observaciones='Consolidado creado manualmente por administrador.',
+    )
+    cierre.fecha_cierre = fin
+    cierre.save(update_fields=['fecha_cierre'])
+    messages.success(request, f'Consolidado creado para el {fecha.strftime("%d/%m/%Y")} (valores en 0).')
     return redirect('consolidados')
 
 
@@ -277,8 +304,8 @@ def lista_consolidados(request):
 
     cierres = list(cierres)
     if cierres:
-        rango_desde = cierres[-1].fecha_cierre.date()
-        rango_hasta = cierres[0].fecha_cierre.date()
+        rango_desde = timezone.localtime(cierres[-1].fecha_cierre).date()
+        rango_hasta = timezone.localtime(cierres[0].fecha_cierre).date()
     else:
         rango_desde, rango_hasta = hoy, hoy
 

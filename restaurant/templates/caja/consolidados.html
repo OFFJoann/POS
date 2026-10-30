@@ -32,6 +32,36 @@
         </a>
     </div>
 
+    {% if es_admin %}
+    <!-- Crear consolidado manual (solo admin) -->
+    <div class="card border-0 shadow-sm mb-3 border-warning">
+        <div class="card-header bg-warning bg-opacity-10 py-2">
+            <h6 class="mb-0 text-warning-emphasis">
+                <i class="bi bi-shield-lock"></i> Administración: crear consolidado manual
+            </h6>
+        </div>
+        <div class="card-body py-2">
+            <form method="post" action="{% url 'crear_consolidado' %}" class="row g-2 align-items-end">
+                {% csrf_token %}
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Fecha del consolidado</label>
+                    <input type="date" name="fecha" class="form-control" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-plus-circle"></i> Crear consolidado (valores en 0)
+                    </button>
+                </div>
+                <div class="col-12">
+                    <small class="text-muted">
+                        Crea un consolidado vacío para el día indicado. Si ya existe un consolidado para esa fecha, no se duplica.
+                    </small>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Filtro por rango de fechas -->
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body py-2">
